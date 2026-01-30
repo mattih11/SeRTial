@@ -22,6 +22,19 @@ using namespace examples::messages;
 // Step 1: Define your MessageCollection
 // ============================================================================
 
+struct ComplexData
+{
+    int id;
+    sertial::fixed_string<64> name;
+    sertial::fixed_vector<float, 10> values;
+    int32_t group_id;
+    sertial::fixed_vector<float, 10> values2;
+    Timestamp<> timestamp;
+    int16_t flags;
+    int8_t status;
+};
+
+
 // Register all message types you want to generate schemas for
 using MyMessages = MessageCollection<
     // Basic field types
@@ -39,7 +52,8 @@ using MyMessages = MessageCollection<
     PointCloudMedium,
     CameraInfo<>,
     Imu<>,
-    ImuDouble
+    ImuDouble,
+    ComplexData
 >;
 
 // ============================================================================

@@ -69,12 +69,15 @@ bool variable_field_analysis() {
     obj1.values.push_back(3);
     
     std::size_t size1 = HMM::calculate_packed_size(obj1);
-    std::size_t expected1 = HMM::base_packed_size + 3 * sizeof(uint16_t);
-    TEST_ASSERT_EQ(size1, expected1, "Size should include 3 uint16_t elements");
+    // base(4) + length(4) + 3*uint16(6) + timestamp(8) = 22
+    std::size_t expected1 = HMM::base_packed_size + sizeof(uint32_t) + 3 * sizeof(uint16_t) + 8;
+    TEST_ASSERT_EQ(size1, expected1, "Size should include length prefix + 3 uint16_t elements");
     
     WithVariable obj2{99, {}, 67890};
     std::size_t size2 = HMM::calculate_packed_size(obj2);
-    TEST_ASSERT_EQ(size2, HMM::base_packed_size, "Empty vector should be base size");
+    // base(4) + length(4) + timestamp(8) = 16
+    std::size_t expected2 = HMM::base_packed_size + sizeof(uint32_t) + 8;  // Length prefix + timestamp
+    TEST_ASSERT_EQ(size2, expected2, "Empty vector should be base size + length prefix");
     
     return true;
 }
@@ -96,8 +99,13 @@ bool multi_variable_analysis() {
     obj.data.push_back(2.0f);
     
     std::size_t size = HMM::calculate_packed_size(obj);
-    std::size_t expected = HMM::base_packed_size + 5 * sizeof(char) + 2 * sizeof(float);
-    TEST_ASSERT_EQ(size, expected, "Size should include name and data elements");
+    // base + name(4+5) + count(4) + data(4+8) + flags(2) = 0 + 9 + 4 + 12 + 2 = 27
+    std::size_t expected = HMM::base_packed_size + 
+                          sizeof(uint32_t) + 5 * sizeof(char) +  // name with length prefix
+                          4 +  // count (runtime offset block)
+                          sizeof(uint32_t) + 2 * sizeof(float) +  // data with length prefix
+                          2;  // flags (runtime offset block)
+    TEST_ASSERT_EQ(size, expected, "Size should include length prefixes + name and data elements");
     
     return true;
 }
@@ -108,13 +116,12 @@ bool pure_fixed_serialization() {
     PureFixed original{0x12345678, 0xABCD, 0xFEDCBA9876543210, 3.14159f};
     
     auto buffer = serialize_unified(original);
-    auto restored = deserialize<PureFixed>(buffer);
+    auto restored = deserialize_unified<PureFixed>(buffer);
     
-    TEST_ASSERT(restored.has_value(), "Deserialization should succeed");
-    TEST_ASSERT_EQ(restored->a, original.a, "Field a should match");
-    TEST_ASSERT_EQ(restored->b, original.b, "Field b should match");
-    TEST_ASSERT_EQ(restored->c, original.c, "Field c should match");
-    TEST_ASSERT(std::abs(restored->d - original.d) < 0.0001f, "Field d should match");
+    TEST_ASSERT_EQ(restored.a, original.a, "Field a should match");
+    TEST_ASSERT_EQ(restored.b, original.b, "Field b should match");
+    TEST_ASSERT_EQ(restored.c, original.c, "Field c should match");
+    TEST_ASSERT(std::abs(restored.d - original.d) < 0.0001f, "Field d should match");
     
     return true;
 }
@@ -127,13 +134,58 @@ bool variable_field_serialization() {
     original.values.push_back(200);
     original.values.push_back(300);
     
+    // Serialize
+    auto buffer = serialize_unified(original);
+    
+    // Check size
     using HMM = HybridMemoryMap<WithVariable>;
     std::size_t expected_size = HMM::calculate_packed_size(original);
+    TEST_ASSERT_EQ(buffer.size(), expected_size, "Buffer size should match calculated size");
     
-    std::vector<std::byte> buffer(expected_size);
-    std::size_t written = serialize_to_unified(original, buffer.data());
+    // Deserialize
+    auto restored = deserialize_unified<WithVariable>(buffer);
     
-    TEST_PRINT("Serialized " << written << " bytes for variable struct (TODO: full implementation)");
+    TEST_ASSERT_EQ(restored.id, original.id, "Field id should match");
+    TEST_ASSERT_EQ(restored.timestamp, original.timestamp, "Field timestamp should match");
+    TEST_ASSERT_EQ(restored.values.size(), original.values.size(), "Vector size should match");
+    
+    for (std::size_t i = 0; i < original.values.size(); ++i) {
+        TEST_ASSERT_EQ(restored.values[i], original.values[i], "Vector element should match");
+    }
+    
+    TEST_PRINT("Serialized " << buffer.size() << " bytes, round-trip successful");
+    
+    return true;
+}
+
+bool multi_variable_serialization() {
+    TEST_SECTION("Multiple variable fields serialization");
+    
+    MultiVariable original{"Hello", 5, {}, 0xABCD};
+    original.data.push_back(1.5f);
+    original.data.push_back(2.5f);
+    original.data.push_back(3.5f);
+    
+    // Serialize
+    auto buffer = serialize_unified(original);
+    
+    // Deserialize
+    auto restored = deserialize_unified<MultiVariable>(buffer);
+    
+    TEST_ASSERT_EQ(restored.count, original.count, "Field count should match");
+    TEST_ASSERT_EQ(restored.flags, original.flags, "Field flags should match");
+    
+    // Check string
+    TEST_ASSERT_EQ(restored.name.size(), original.name.size(), "String size should match");
+    TEST_ASSERT_EQ(std::string(restored.name.data()), std::string(original.name.data()), "String content should match");
+    
+    // Check vector
+    TEST_ASSERT_EQ(restored.data.size(), original.data.size(), "Vector size should match");
+    for (std::size_t i = 0; i < original.data.size(); ++i) {
+        TEST_ASSERT(std::abs(restored.data[i] - original.data[i]) < 0.0001f, "Vector element should match");
+    }
+    
+    TEST_PRINT("Multi-variable round-trip successful");
     
     return true;
 }
@@ -171,6 +223,7 @@ struct HybridBinaryTests : TestSuite<HybridBinaryTests> {
         success &= tests::multi_variable_analysis();
         success &= tests::pure_fixed_serialization();
         success &= tests::variable_field_serialization();
+        success &= tests::multi_variable_serialization();
         success &= tests::copy_region_optimization();
         return success;
     }

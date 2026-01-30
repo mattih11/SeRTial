@@ -2,7 +2,7 @@
 
 #include "core/traits.hpp"
 #include "core/endian.hpp"
-#include "io/optimized_binary.hpp"
+#include "io/unified_binary.hpp"
 #include <array>
 #include <cstddef>
 #include <span>
@@ -143,11 +143,12 @@ struct Message {
     /// @brief Is this type bounded (compile-time max size)?
     static constexpr bool is_bounded = true;  // Guaranteed by concept
     
-    /// @brief Maximum buffer size needed for serialization (EXACT, not heuristic)
+    /// @brief Maximum buffer size needed for serialization
     /// This is computed at compile-time from the struct definition.
     /// The buffer is guaranteed to fit any valid serialization.
-    /// Uses MemoryMap::packed_size since we use optimized serialization.
-    static constexpr std::size_t max_buffer_size = memory_map::packed_size;
+    /// For types with variable-size fields, this is the maximum capacity.
+    /// For fixed-size types, this is the exact packed size.
+    static constexpr std::size_t max_buffer_size = HybridMemoryMap<T>::max_packed_size;
     
     /// @brief Stack-allocated buffer type (zero heap allocation)
     using buffer_type = std::array<std::byte, max_buffer_size>;
@@ -197,8 +198,8 @@ struct Message {
     /// @param buffer The buffer to write to
     /// @return Number of bytes written
     static std::size_t serialize_to(const T& value, buffer_type& buffer) {
-        // Use optimized memcpy-based serialization
-        return sertial::serialize_to(value, buffer.data());
+        // Use unified block-based serialization (handles both fixed and variable-size fields)
+        return serialize_to_unified(value, buffer.data());
     }
     
     /// @brief Serialize to a static_buffer (zero allocation)
@@ -206,7 +207,7 @@ struct Message {
     /// @param value The value to serialize
     /// @return static_buffer containing the serialized bytes
     [[nodiscard]] static auto to_buffer(const T& value) {
-        return sertial::serialize(value);
+        return serialize_unified(value);
     }
     
     // ========================================================================
@@ -218,11 +219,13 @@ struct Message {
     /// @param data The serialized data
     /// @return Result containing the deserialized value or an error
     [[nodiscard]] static DeserializeResult<T> deserialize(std::span<const std::byte> data) {
-        auto result = sertial::deserialize<T>(data);
-        if (result) {
-            return *result;
+        try {
+            return deserialize_unified<T>(data.data(), data.size());
+        } catch (const std::exception& e) {
+            return MessageError(std::string("Deserialization failed: ") + e.what());
+        } catch (...) {
+            return MessageError("Deserialization failed");
         }
-        return MessageError("Deserialization failed");
     }
     
     /// @brief Deserialize from a byte span with endianness conversion
@@ -231,9 +234,9 @@ struct Message {
     /// @param source_endian The endianness of the source data
     /// @return Result containing the deserialized value or an error
     /// 
-    /// @note This performs zero-cost endianness conversion using compile-time
-    /// field information. The conversion happens in-place on a copy of the data
-    /// before deserialization.
+    /// @note LIMITATION: Endianness conversion for variable-size fields (fixed_vector/fixed_string)
+    /// is not yet implemented. This currently only works correctly for fixed-size structs.
+    /// See TODO in hybrid_memory_map.hpp for planned implementation.
     /// 
     /// @example
     /// ```cpp
@@ -246,6 +249,11 @@ struct Message {
     {
         // Only convert if endianness differs
         if (source_endian != std::endian::native) {
+            // Check if this type has variable-size fields
+            if constexpr (HybridMemoryMap<T>::has_variable_fields) {
+                return MessageError("Endianness conversion for variable-size fields not yet implemented");
+            }
+            
             // Make a mutable copy for in-place conversion
             std::array<std::byte, max_buffer_size> temp;
             if (data.size() > max_buffer_size) {
@@ -253,15 +261,17 @@ struct Message {
             }
             std::copy(data.begin(), data.end(), temp.begin());
             
-            // Swap endianness in-place
+            // Swap endianness in-place (only works for fixed-size types)
             swap_endianness<T>(std::span<std::byte>{temp.data(), data.size()});
             
             // Deserialize from converted data
-            auto result = sertial::deserialize<T>(std::span<const std::byte>{temp.data(), data.size()});
-            if (result) {
-                return *result;
+            try {
+                return deserialize_unified<T>(temp.data(), data.size());
+            } catch (const std::exception& e) {
+                return MessageError(std::string("Deserialization failed after endian conversion: ") + e.what());
+            } catch (...) {
+                return MessageError("Deserialization failed after endian conversion");
             }
-            return MessageError("Deserialization failed after endian conversion");
         }
         
         // No conversion needed
@@ -293,7 +303,12 @@ struct Message {
     [[nodiscard]] static bool deserialize_into(
         std::span<const std::byte> data, T& out) 
     {
-        return sertial::deserialize_into(data, out);
+        try {
+            out = deserialize_unified<T>(data.data(), data.size());
+            return true;
+        } catch (...) {
+            return false;
+        }
     }
     
     // ========================================================================
@@ -304,9 +319,11 @@ struct Message {
     /// 
     /// @param value The value to measure
     /// @return Exact number of bytes needed
-    [[nodiscard]] static std::size_t compute_size([[maybe_unused]] const T& value) {
-        // With optimized serialization, size is known at compile-time
-        return memory_map::packed_size;
+    [[nodiscard]] static std::size_t compute_size(const T& value) {
+        // Use HybridMemoryMap for runtime size calculation
+        // For fixed-size types, this is compile-time constant
+        // For variable-size types, this evaluates the actual container sizes
+        return HybridMemoryMap<T>::calculate_packed_size(value);
     }
     
     /// @brief Print memory layout information to stdout
@@ -328,7 +345,7 @@ struct Message {
 // High-Level Convenience Functions (Message<T> based)
 // ============================================================================
 
-// Note: Low-level serialize/deserialize are in optimized_binary.hpp
+// Note: Low-level serialize_unified/deserialize_unified are in unified_binary.hpp
 // These provide the Message<T> interface with Result types
 
 /// @brief Serialize with Message<T> interface (returns Result with buffer)

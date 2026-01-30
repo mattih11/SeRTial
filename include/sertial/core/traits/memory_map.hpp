@@ -38,6 +38,18 @@ struct MemcpyRegion {
     std::size_t field_count = 0;    ///< Number of fields in this region
 };
 
+/// @brief Information about a serialization block
+struct BlockInfo {
+    std::string type;               ///< "Fixed", "Padding", "Dynamic", "RuntimeOffset"
+    std::size_t src_offset = 0;     ///< Offset in struct
+    std::size_t dst_offset = 0;     ///< Offset in serialized buffer (0 for dynamic/runtime)
+    std::size_t size = 0;           ///< Size in bytes (0 for dynamic)
+    std::size_t field_index = 0;    ///< Field index (for Dynamic blocks)
+    std::size_t field_start = 0;    ///< First field in block
+    std::size_t field_count = 0;    ///< Number of fields in block
+    bool is_variable = false;       ///< True for Dynamic blocks
+};
+
 /// @brief Complete schema for a type - JSON serializable via rfl::json
 struct TypeSchema {
     std::string name;
@@ -54,11 +66,19 @@ struct TypeSchema {
     bool can_single_memcpy = false;
     std::size_t memcpy_region_count = 0;
     
+    // Hybrid memory map info
+    bool has_variable_fields = false;
+    std::size_t base_packed_size = 0;
+    std::size_t fixed_block_count = 0;
+    std::size_t dynamic_block_count = 0;
+    std::size_t runtime_offset_block_count = 0;
+    
     // Field details (from MemoryMap<T>)
     std::vector<std::string> field_names;
     std::vector<std::string> field_types;
     std::vector<FieldInfo> field_info;
     std::vector<MemcpyRegion> memcpy_regions;
+    std::vector<BlockInfo> blocks;          ///< Serialization blocks in execution order
 };
 
 // ============================================================================
@@ -548,10 +568,16 @@ struct MemoryMap {
             has_padding,
             can_single_memcpy,
             memcpy_region_count,
+            false,  // has_variable_fields (populated by hybrid schema)
+            0,      // base_packed_size
+            0,      // fixed_block_count
+            0,      // dynamic_block_count
+            0,      // runtime_offset_block_count
             get_field_names(),
             get_field_type_names(),
             get_field_infos(),
-            get_memcpy_regions()
+            get_memcpy_regions(),
+            {}      // blocks (populated by hybrid schema)
         };
     }
     
@@ -567,10 +593,16 @@ struct MemoryMap {
             has_padding,
             can_single_memcpy,
             memcpy_region_count,
+            false,  // has_variable_fields
+            0,      // base_packed_size
+            0,      // fixed_block_count
+            0,      // dynamic_block_count
+            0,      // runtime_offset_block_count
             get_field_names(),
             get_field_type_names(),
             get_field_infos(),
-            get_memcpy_regions()
+            get_memcpy_regions(),
+            {}      // blocks
         };
     }
 };
