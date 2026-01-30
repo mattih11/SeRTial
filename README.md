@@ -341,22 +341,45 @@ SeRTial/
 ```
 
 ## Performance
+
 ## Introspection & Visualization
 
 SeRTial includes powerful tools to inspect and visualize your message types at runtime.
 
-### Quick Start - GUI Viewer
+### Workflow: Schema Generation and Viewing
 
-Launch the interactive schema viewer with a single command:
+1. **Schema Generation**: The C++ example `schema_example.cpp` (or the `make generate_schemas` target) generates a JSON schema file (typically `message_schemas.json`) describing all registered message types, including field names, types, sizes, offsets, padding, and memcpy regions.
+
+2. **Visualization**: The viewer scripts (`scripts/visualize_schema.py` for CLI, `scripts/visualize_schema_gui.py` for GUI) read this JSON schema file to provide interactive or terminal-based exploration of your message layouts.
+
+3. **Automated Workflow**: The `make viewer` target automates this process:
+    - Runs the schema generator to produce the latest `message_schemas.json`
+    - Launches the GUI viewer with the generated schema file
+
+This ensures that the viewer always reflects the current state of your message types.
+
+#### Example: Full Workflow
 
 ```bash
 cd build
 make viewer
+# (generates message_schemas.json and opens the GUI viewer)
 ```
 
-This will:
-1. Generate JSON schemas for all registered message types
-2. Launch the GUI viewer to explore them interactively
+#### Manual Usage
+
+You can also generate schemas and launch viewers manually:
+
+```bash
+# Generate schema JSON
+./schema_example ../scripts/message_schemas.json
+
+# Launch GUI viewer
+python3 ../scripts/visualize_schema_gui.py ../scripts/message_schemas.json
+
+# Or use the CLI viewer
+python3 ../scripts/visualize_schema.py ../scripts/message_schemas.json --summary
+```
 
 ### GUI Viewer Features
 
@@ -383,6 +406,7 @@ python3 scripts/visualize_schema.py scripts/message_schemas.json --message Heade
 python3 scripts/visualize_schema.py scripts/message_schemas.json --all
 ```
 
+
 ### Schema Generation API
 
 Generate schemas programmatically:
@@ -407,6 +431,8 @@ gen.write_to_file("schemas.json");
 | `make visualize` | Generate schemas and print CLI summary |
 | `make generate_schemas` | Generate `message_schemas.json` only |
 
+
+## Performance
 
 SeRTial achieves high performance through:
 
