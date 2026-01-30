@@ -341,6 +341,72 @@ SeRTial/
 ```
 
 ## Performance
+## Introspection & Visualization
+
+SeRTial includes powerful tools to inspect and visualize your message types at runtime.
+
+### Quick Start - GUI Viewer
+
+Launch the interactive schema viewer with a single command:
+
+```bash
+cd build
+make viewer
+```
+
+This will:
+1. Generate JSON schemas for all registered message types
+2. Launch the GUI viewer to explore them interactively
+
+### GUI Viewer Features
+
+The GUI viewer (`scripts/visualize_schema_gui.py`) provides:
+
+- **Message Browser**: Browse all message types by category
+- **Memory Layout Visualization**: See struct layout with color-coded fields
+- **Padding Analysis**: Visual highlighting of padding bytes between fields
+- **Memcpy Region Display**: Shows optimized copy regions for serialization
+- **Field Details Table**: Offsets, sizes, types, and padding information
+
+### CLI Visualizer
+
+For terminal-based inspection:
+
+```bash
+# Summary of all messages
+python3 scripts/visualize_schema.py scripts/message_schemas.json --summary
+
+# Detailed view of specific message
+python3 scripts/visualize_schema.py scripts/message_schemas.json --message Header
+
+# All messages with full details
+python3 scripts/visualize_schema.py scripts/message_schemas.json --all
+```
+
+### Schema Generation API
+
+Generate schemas programmatically:
+
+```cpp
+#include <sertial/integration/schema_generator.hpp>
+
+// Register your types
+SchemaGenerator gen;
+gen.add<MyMessage>("category");
+gen.add<AnotherMessage>("category");
+
+// Generate JSON
+gen.write_to_file("schemas.json");
+```
+
+### Make Targets
+
+| Target | Description |
+|--------|-------------|
+| `make viewer` | Generate schemas and launch GUI viewer |
+| `make visualize` | Generate schemas and print CLI summary |
+| `make generate_schemas` | Generate `message_schemas.json` only |
+
 
 SeRTial achieves high performance through:
 

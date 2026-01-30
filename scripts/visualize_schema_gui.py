@@ -471,12 +471,13 @@ class SchemaVisualizerApp:
     def _update_message_list(self):
         """Update the message listbox."""
         self.message_list.delete(0, tk.END)
-        
+
         category = self.category_var.get()
-        
+
         for msg in self.messages:
             if category == 'All' or msg.category == category:
-                status = "[OK]" if msg.can_single_memcpy else "o"
+                # [1] means single memcpy, o means multiple regions
+                status = "[1]" if msg.can_single_memcpy else "o"
                 padding = "P" if msg.has_padding else " "
                 self.message_list.insert(tk.END, f"{status}{padding} {msg.name}")
     
@@ -485,11 +486,15 @@ class SchemaVisualizerApp:
         selection = self.message_list.curselection()
         if not selection:
             return
-        
-        # Get selected message name
+
+        # Get selected message name (after status and padding)
         item = self.message_list.get(selection[0])
-        name = item[3:]  # Skip status indicators
-        
+        # Split on first space to get the name
+        parts = item.split(' ', 1)
+        if len(parts) < 2:
+            return
+        name = parts[1].strip()
+
         # Find the message
         category = self.category_var.get()
         for msg in self.messages:
@@ -500,33 +505,35 @@ class SchemaVisualizerApp:
     def _display_message(self, msg: MessageSchema):
         """Display message details."""
         self.current_message = msg
-        
+
         # Update info panel
         self.info_text.delete('1.0', tk.END)
-        
-        memcpy_status = "[OK] Single memcpy" if msg.can_single_memcpy else f"o {msg.memcpy_region_count} memcpy regions"
+
+        memcpy_status = "[1] Single memcpy (fastest, no field splitting)" if msg.can_single_memcpy else f"o {msg.memcpy_region_count} memcpy regions (needs field splitting)"
         padding = "Has Padding" if msg.has_padding else "No Padding"
-        
+
         info = f"""Name:           {msg.name}
-Category:       {msg.category}
-Fields:         {msg.field_count}
+    Category:       {msg.category}
+    Fields:         {msg.field_count}
 
-sizeof:         {msg.sizeof_bytes} bytes
-packed_size:    {msg.packed_size} bytes
-padding_bytes:  {msg.padding_bytes} bytes
+    sizeof:         {msg.sizeof_bytes} bytes
+    packed_size:    {msg.packed_size} bytes
+    padding_bytes:  {msg.padding_bytes} bytes
 
-Copy Strategy:  {memcpy_status} | {padding}
-"""
+    Copy Strategy:  {memcpy_status} | {padding}
+
+    Legend: [1] = can be copied in one block (fastest), o = needs multiple copy regions, P = has padding
+    """
         if msg.has_padding:
             savings = msg.padding_bytes
             pct = (savings / msg.sizeof_bytes * 100) if msg.sizeof_bytes > 0 else 0
             info += f"Space Saved:    {savings} bytes ({pct:.1f}%)\n"
-        
+
         self.info_text.insert('1.0', info)
-        
+
         # Update memory canvas
         self._draw_memory_layout(msg)
-        
+
         # Update fields table
         self.fields_tree.delete(*self.fields_tree.get_children())
         for i, field in enumerate(msg.fields):
@@ -541,7 +548,7 @@ Copy Strategy:  {memcpy_status} | {padding}
                 name_display, field.type, field.offset, size_display, field.packed_offset, padding_str
             ), tags=(f'color{i}',))
             self.fields_tree.tag_configure(f'color{i}', background=color)
-        
+
         # Update copy operations (memcpy regions)
         self.copy_text.delete('1.0', tk.END)
         copy_info = f"Total memcpy regions: {msg.memcpy_region_count}\n\n"
@@ -551,7 +558,7 @@ Copy Strategy:  {memcpy_status} | {padding}
             end_idx = min(start_idx + region.field_count, len(msg.fields))
             field_names = [msg.fields[j].name for j in range(start_idx, end_idx)]
             desc = ", ".join(field_names) if field_names else f"fields {start_idx}-{end_idx-1}"
-            
+
             copy_info += f"* Region {i+1}: {desc}\n"
             copy_info += f"   src[{region.src_offset:>4}:{region.src_offset + region.size:<4}] → dst[{region.dst_offset:>4}:{region.dst_offset + region.size:<4}] ({region.size} bytes)\n"
         if len(msg.memcpy_regions) > 10:

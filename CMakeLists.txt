@@ -132,3 +132,14 @@ add_custom_target(visualize
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     COMMENT "Visualizing message schemas..."
 )
+
+# Launch GUI schema viewer (generates schemas first)
+add_custom_target(viewer
+    COMMAND ${CMAKE_COMMAND} -E echo "Generating schemas..."
+    COMMAND schema_example ${CMAKE_SOURCE_DIR}/scripts/message_schemas.json
+    COMMAND ${CMAKE_COMMAND} -E echo "Launching GUI viewer..."
+    COMMAND python3 ${CMAKE_SOURCE_DIR}/scripts/visualize_schema_gui.py ${CMAKE_SOURCE_DIR}/scripts/message_schemas.json
+    DEPENDS schema_example
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    COMMENT "Generating schemas and launching GUI viewer..."
+)
