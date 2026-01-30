@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../core/traits/memory_map.hpp"
+#include "../traits/container_detection.hpp"
 #include "../containers/static_buffer.hpp"
 #include <cstring>
 #include <span>
@@ -70,11 +71,22 @@ inline std::size_t serialize_to(const T& value, static_buffer<N>& buffer) {
 
 /// @brief Serialize to a raw byte pointer (caller must ensure sufficient space)
 /// Returns the number of bytes written
+/// 
+/// **IMPORTANT**: Structs with fixed containers (fixed_vector/fixed_string) should
+/// use the reflector API instead, as this path copies the entire capacity.
+/// This is caught at compile-time via static_assert.
 template<typename T>
 requires std::is_trivially_copyable_v<T>
 inline std::size_t serialize_to(const T& value, std::byte* dest) {
     using MM = MemoryMap<T>;
     
+    // Compile-time check: fail if struct contains fixed containers
+    // (they need reflector path for proper size() handling)
+    static_assert(!detail::struct_has_fixed_containers<T>(),
+        "Structs with fixed_vector/fixed_string must use BinaryReflector API "
+        "for proper runtime size handling. Use write_reflector(writer, value) instead.");
+    
+    // Safe to use optimized memcpy - no variable-size fields
     const std::byte* src = reinterpret_cast<const std::byte*>(&value);
     
     if constexpr (MM::can_single_memcpy) {
@@ -113,11 +125,21 @@ inline std::size_t serialize_to(const T& value, std::span<std::byte> dest) {
 
 /// @brief Deserialize a trivially copyable struct from a byte span
 /// Reconstructs the struct from packed data (inserting padding where needed)
+/// 
+/// **IMPORTANT**: Structs with fixed containers (fixed_vector/fixed_string) should
+/// use the reflector API instead, as this path expects fixed packed size.
+/// This is caught at compile-time via static_assert.
 template<typename T>
 requires std::is_trivially_copyable_v<T>
 [[nodiscard]] inline std::optional<T> deserialize(std::span<const std::byte> data) {
     using MM = MemoryMap<T>;
     
+    // Compile-time check: fail if struct contains fixed containers
+    static_assert(!detail::struct_has_fixed_containers<T>(),
+        "Structs with fixed_vector/fixed_string must use BinaryReflector API "
+        "for proper runtime size handling. Use read_reflector<T>(reader) instead.");
+    
+    // Safe to use optimized memcpy - no variable-size fields
     if (data.size() < MM::packed_size) {
         return std::nullopt;  // Not enough data
     }

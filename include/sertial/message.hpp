@@ -1,12 +1,14 @@
 #pragma once
 
 #include "core/traits.hpp"
+#include "core/endian.hpp"
 #include "io/optimized_binary.hpp"
 #include <array>
 #include <cstddef>
 #include <span>
 #include <optional>
 #include <string>
+#include <bit>
 
 namespace sertial {
 
@@ -221,6 +223,49 @@ struct Message {
             return *result;
         }
         return MessageError("Deserialization failed");
+    }
+    
+    /// @brief Deserialize from a byte span with endianness conversion
+    /// 
+    /// @param data The serialized data
+    /// @param source_endian The endianness of the source data
+    /// @return Result containing the deserialized value or an error
+    /// 
+    /// @note This performs zero-cost endianness conversion using compile-time
+    /// field information. The conversion happens in-place on a copy of the data
+    /// before deserialization.
+    /// 
+    /// @example
+    /// ```cpp
+    /// auto buffer = receive_from_network();
+    /// auto msg = Message<MyMessage>::deserialize(buffer, std::endian::big);
+    /// ```
+    [[nodiscard]] static DeserializeResult<T> deserialize(
+        std::span<const std::byte> data, 
+        std::endian source_endian) 
+    {
+        // Only convert if endianness differs
+        if (source_endian != std::endian::native) {
+            // Make a mutable copy for in-place conversion
+            std::array<std::byte, max_buffer_size> temp;
+            if (data.size() > max_buffer_size) {
+                return MessageError("Data size exceeds buffer capacity");
+            }
+            std::copy(data.begin(), data.end(), temp.begin());
+            
+            // Swap endianness in-place
+            swap_endianness<T>(std::span<std::byte>{temp.data(), data.size()});
+            
+            // Deserialize from converted data
+            auto result = sertial::deserialize<T>(std::span<const std::byte>{temp.data(), data.size()});
+            if (result) {
+                return *result;
+            }
+            return MessageError("Deserialization failed after endian conversion");
+        }
+        
+        // No conversion needed
+        return deserialize(data);
     }
     
     /// @brief Deserialize from a static_buffer
