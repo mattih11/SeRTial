@@ -63,6 +63,8 @@ set(TEST_SOURCES
     test_serialization
     test_padding
     test_size_computation
+    test_endianness
+    test_hybrid_binary
 )
 
 foreach(test_name ${TEST_SOURCES})
@@ -96,6 +98,8 @@ add_custom_target(run_tests
     COMMAND test_serialization
     COMMAND test_padding
     COMMAND test_size_computation
+    COMMAND test_endianness
+    COMMAND test_hybrid_binary
     COMMAND test_example
     DEPENDS ${TEST_SOURCES} test_example
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}

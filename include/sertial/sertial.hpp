@@ -28,6 +28,7 @@
 // Core modules (usually not needed directly)
 #include "core/concepts.hpp"
 #include "core/traits.hpp"
+#include "core/endian.hpp"
 
 // Containers
 #include "containers/fixed_string.hpp"
