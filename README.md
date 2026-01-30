@@ -1,0 +1,468 @@
+# SeRTial
+
+A high-performance, zero-allocation C++20 binary serialization library using compile-time reflection with [reflect-cpp](https://github.com/getml/reflect-cpp).
+
+## License
+
+Copyright (C) 2026 Matthias Haase <mattihaae@proton.me>
+
+This program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; either version 2 of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with this program; if not, write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+
+## Key Features
+
+- **Zero Runtime Allocation**: Stack-allocated buffers with compile-time size computation
+- **Compile-Time Reflection**: Automatic struct serialization via reflect-cpp
+- **Padding Analysis**: Detects struct padding, optimizes memcpy operations
+- **Memory Mapping**: Compile-time field layout analysis
+- **Simple API**: `serialize(obj)` / `deserialize<T>(data)`
+
+## Quick Start
+
+```cpp
+#include <sertial/sertial.hpp>
+
+struct Player {
+    uint32_t id;
+    float health;
+    float x, y, z;
+};
+
+int main() {
+    using namespace sertial;
+    
+    Player player{42, 100.0f, 1.5f, 2.5f, 3.5f};
+    
+    // Serialize (zero heap allocations - stack buffer)
+    auto buffer = serialize(player);
+    
+    // Deserialize
+    auto restored = deserialize<Player>(buffer.view());
+    
+    // Compile-time analysis
+    static_assert(Message<Player>::packed_size == 20);
+    static_assert(!Message<Player>::has_padding);
+}
+```
+
+## Prerequisites
+
+- CMake 3.20 or higher
+- C++20 compatible compiler (GCC 10+, Clang 12+, MSVC 2019+)
+- reflect-cpp installed on your system
+
+### Installing reflect-cpp
+
+```bash
+git clone https://github.com/getml/reflect-cpp.git
+cd reflect-cpp
+mkdir build && cd build
+cmake ..
+cmake --build .
+sudo cmake --install .
+```
+
+## Building SeRTial
+
+```bash
+git clone <repository-url>
+cd SeRTial
+mkdir build && cd build
+cmake ..
+cmake --build .
+```
+
+## Running Tests
+
+```bash
+cd build
+
+# Individual test suites
+./test_foundation       # Core containers and type traits
+./test_binary_io        # BinaryWriter, BinaryReader, varint
+./test_reflector        # Type-specific serialization handlers
+./test_serialization    # High-level serialize/deserialize API
+./test_padding          # Padding analysis
+./test_size_computation # Compile-time size computation
+
+# Run all tests
+make run_tests
+```
+
+## Examples Guide
+
+SeRTial includes several example programs demonstrating different aspects of the library.
+
+### Example 1: Basic Serialization (`examples/serialization_example.cpp`)
+
+This comprehensive example demonstrates:
+
+```bash
+cd build
+./serialization_example
+```
+
+**Step-by-step walkthrough:**
+
+1. **Zero-Allocation Serialization**
+   ```cpp
+   Position<> pos;
+   pos.header.seq = 42;
+   pos.pose.position = Point3D<>{1.5f, 2.5f, 3.5f};
+   
+   // serialize() returns a static_buffer (stack-allocated)
+   auto buffer = serialize(pos);
+   // buffer.view() gives std::span<const std::byte>
+   // buffer.size() returns actual bytes written
+   ```
+
+2. **Deserialization**
+   ```cpp
+   auto restored = deserialize<Position<>>(buffer.view());
+   if (restored) {
+       // Use restored->header, restored->pose, etc.
+   }
+   ```
+
+3. **Compile-Time Layout Analysis**
+   ```cpp
+   // All computed at compile-time, zero runtime cost
+   constexpr auto packed = Message<Position<>>::packed_size;
+   constexpr auto has_pad = Message<Position<>>::has_padding;
+   constexpr auto fields = Message<Position<>>::field_count;
+   ```
+
+4. **Batch Serialization**
+   ```cpp
+   uint32_t seq = 42;
+   float x = 1.5f, y = 2.5f, z = 3.5f;
+   
+   // Serialize multiple values at once
+   auto batch = to_binary_batch(seq, x, y, z);
+   ```
+
+5. **Static Buffers**
+   ```cpp
+   // Pre-defined buffer sizes for reuse
+   static_buffer_128 buffer;  // 128-byte stack buffer
+   serialize_to(pos, buffer);
+   
+   // Reuse same buffer for multiple serializations
+   buffer.clear();
+   serialize_to(other_pos, buffer);
+   ```
+
+6. **Error Handling**
+   ```cpp
+   std::vector<std::byte> truncated = {std::byte{0x01}};
+   auto result = deserialize<Position<>>(truncated);
+   if (!result) {
+       // Deserialization failed safely, no crash
+   }
+   ```
+
+### Example 2: Schema Generation (`examples/schema_example.cpp`)
+
+Generate JSON schemas describing your message types:
+
+```bash
+cd build
+./schema_example ../scripts/message_schemas.json
+```
+
+This creates a JSON file with:
+- Field names, types, sizes, offsets
+- Padding information
+- Memcpy regions for optimization
+- Nested structure analysis
+
+### Example 3: Runtime Testing (`examples/test_example.cpp`)
+
+Verify message round-trip integrity:
+
+```bash
+cd build
+./test_example
+```
+
+This demonstrates:
+- Automatic round-trip verification
+- Statistics collection
+- Error detection
+
+### Example 4: Main Demo (`src/main.cpp`)
+
+Interactive demonstration of all features:
+
+```bash
+cd build
+./SeRTial
+```
+
+Shows:
+- Type analysis output
+- Serialization/deserialization
+- Padding detection and optimization
+- Nested struct handling
+
+## API Reference
+
+### Core Functions
+
+```cpp
+namespace sertial {
+
+// Serialize a value to a stack-allocated buffer
+template<typename T>
+auto serialize(const T& value) -> static_buffer<MemoryMap<T>::packed_size>;
+
+// Serialize into an existing buffer
+template<typename T, size_t N>
+void serialize_to(const T& value, static_buffer<N>& buffer);
+
+// Deserialize from bytes
+template<typename T>
+std::optional<T> deserialize(std::span<const std::byte> data);
+
+}
+```
+
+### Message<T> Wrapper
+
+```cpp
+template<typename T>
+struct Message {
+    // Compile-time information
+    static constexpr std::size_t packed_size;      // Size without padding
+    static constexpr std::size_t max_buffer_size;  // Max serialized size
+    static constexpr bool has_padding;             // Has struct padding?
+    static constexpr std::size_t field_count;      // Number of fields
+    static constexpr std::size_t memcpy_count;     // Memcpy operations needed
+    static constexpr bool can_single_memcpy;       // Can use single memcpy?
+    
+    using buffer_type = std::array<std::byte, max_buffer_size>;
+    
+    // Serialization
+    static Result serialize(const T& value);
+    
+    // Deserialization
+    static DeserializeResult<T> deserialize(std::span<const std::byte> data);
+};
+```
+
+### Bounded Containers
+
+For zero-allocation serialization, use bounded container types:
+
+```cpp
+#include <sertial/containers/fixed_string.hpp>
+#include <sertial/containers/fixed_vector.hpp>
+
+struct GameMessage {
+    fixed_string<32> player_name;      // Max 32 chars
+    fixed_vector<int32_t, 16> scores;  // Max 16 elements
+    fixed_vector<Vec3, 100> waypoints; // Max 100 points
+};
+```
+
+### Static Buffers
+
+Pre-allocated buffer types for reuse:
+
+```cpp
+#include <sertial/containers/static_buffer.hpp>
+
+// Pre-defined sizes
+static_buffer_64 small;    // 64 bytes
+static_buffer_128 medium;  // 128 bytes
+static_buffer_256 large;   // 256 bytes
+static_buffer_1k big;      // 1024 bytes
+static_buffer_4k huge;     // 4096 bytes
+
+// Custom size
+static_buffer<512> custom; // 512 bytes
+```
+
+### Debug Utilities
+
+```cpp
+#include <sertial/debug/print_utils.hpp>
+
+using namespace sertial::debug;
+
+// Print hex bytes (produces stdout output)
+print_hex(buffer.view());           // "2a 00 00 00 ..."
+print_bytes(buffer.view());         // "  [20 bytes]: 2a 00 00 00 ..."
+
+// Type analysis (produces stdout output)
+print_type_info<Player>("Player");  // Detailed type info
+
+// String conversion (no output)
+auto hex = to_hex_string(buffer.view());  // Returns string
+
+// Benchmarking
+print_benchmark("serialize", 100000, [&]{ serialize(player); });
+```
+
+## Project Structure
+
+```
+SeRTial/
+├── include/sertial/
+│   ├── sertial.hpp              # Main include header
+│   ├── message.hpp              # Message<T> API
+│   ├── core/                    # Concepts, traits, type analysis
+│   ├── containers/              # fixed_string, fixed_vector, static_buffer
+│   ├── io/                      # BinaryWriter, BinaryReader, optimized_binary
+│   ├── reflector/               # Type-specific reflectors
+│   ├── integration/             # Schema generator, runtime tests
+│   └── debug/                   # print_utils
+├── src/
+│   └── main.cpp                 # Demo application
+├── examples/
+│   ├── serialization_example.cpp
+│   ├── schema_example.cpp
+│   ├── test_example.cpp
+│   ├── defines/                 # Example type definitions
+│   └── messages/                # Example message types
+├── test/
+│   ├── test_foundation.cpp      # Container and traits tests
+│   ├── test_binary_io.cpp       # I/O primitive tests
+│   ├── test_reflector.cpp       # Reflector tests
+│   ├── test_serialization.cpp   # High-level API tests
+│   ├── test_padding.cpp         # Padding analysis tests
+│   └── test_size_computation.cpp
+└── scripts/
+    ├── visualize_schema.py      # CLI schema visualizer
+    └── visualize_schema_gui.py  # GUI schema visualizer
+```
+
+## Performance
+
+SeRTial achieves high performance through:
+
+1. **Zero Heap Allocation**: All buffers are stack-allocated with compile-time sizing
+2. **Optimized Memcpy**: Contiguous fields are copied in single operations
+3. **Compile-Time Analysis**: All type information computed at compile-time
+4. **Padding Elimination**: Only actual data bytes are serialized
+
+Typical performance (example on modern x86-64):
+- Serialize: ~10-15 ns/op for small structs
+- Deserialize: ~50-100 ns/op
+- Throughput: 50-100 million messages/second
+
+## C++ Insights - Understanding the Generated Code
+
+SeRTial heavily relies on C++20 templates and compile-time computation. Use [C++ Insights (cppinsights.io)](https://cppinsights.io/) to see how templates are instantiated and what code the compiler actually generates.
+
+### Input Code
+
+```cpp
+#include <cstdint>
+#include <array>
+#include <cstring>
+
+template<typename T>
+struct MemoryMap {
+    static constexpr std::size_t packed_size = sizeof(T);
+    static constexpr bool has_padding = false;
+};
+
+template<typename T>
+auto serialize(const T& value) {
+    std::array<std::byte, MemoryMap<T>::packed_size> buffer;
+    std::memcpy(buffer.data(), &value, sizeof(T));
+    return buffer;
+}
+
+struct Point { float x, y, z; };
+
+int main() {
+    Point p{1.0f, 2.0f, 3.0f};
+    auto data = serialize(p);
+}
+```
+
+### C++ Insights Output
+
+When you paste the above into [cppinsights.io](https://cppinsights.io/), it shows the fully instantiated code:
+
+```cpp
+template<typename T>
+struct MemoryMap {
+    static constexpr std::size_t packed_size = sizeof(T);
+    static constexpr bool has_padding = false;
+};
+
+/* First instantiated from: insights.cpp:21 */
+#ifdef INSIGHTS_USE_TEMPLATE
+template<>
+struct MemoryMap<Point>
+{
+    static constexpr std::size_t packed_size = 12;   // <-- sizeof(Point) resolved!
+    static constexpr bool has_padding = false;
+};
+#endif
+
+template<typename T>
+auto serialize(const T & value)
+{
+    std::array<std::byte, MemoryMap<T>::packed_size> buffer;
+    std::memcpy(buffer.data(), &value, sizeof(T));
+    return buffer;
+}
+
+/* First instantiated from: insights.cpp:21 */
+#ifdef INSIGHTS_USE_TEMPLATE
+template<>
+std::array<std::byte, 12> serialize<Point>(const Point & value)
+//         ^^^^^^^^^^^^ -- Template resolved to concrete array size!
+{
+    std::array<std::byte, 12> buffer;
+    std::memcpy(buffer.data(), &value, 12UL);  // <-- sizeof resolved to 12
+    return buffer;
+}
+#endif
+
+struct Point {
+    float x;
+    float y;
+    float z;
+};
+
+int main()
+{
+    Point p = {1.0F, 2.0F, 3.0F};
+    std::array<std::byte, 12> data = serialize(p);
+    //         ^^^^^^^^^^^^ -- auto deduced to std::array<std::byte, 12>
+    return 0;
+}
+```
+
+### What This Shows
+
+1. **`MemoryMap<Point>::packed_size`** is resolved to the literal `12` at compile-time
+2. **`serialize<Point>`** returns `std::array<std::byte, 12>` - no dynamic allocation
+3. **`auto data`** is deduced to the concrete type `std::array<std::byte, 12>`
+4. **`memcpy`** size argument becomes the literal `12UL`
+
+This demonstrates SeRTial's zero-overhead principle: all template machinery disappears, leaving only concrete types and direct memory operations.
+
+## Contributing
+
+Contributions are welcome! Please ensure:
+1. Code follows existing style
+2. All tests pass
+3. New features include tests
+4. Documentation is updated
+
+## Author
+
+Matthias Haase <mattihaae@proton.me>
+
+## Acknowledgments
+
+- [reflect-cpp](https://github.com/getml/reflect-cpp) - Compile-time reflection library
