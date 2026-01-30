@@ -58,11 +58,8 @@ target_link_libraries(${PROJECT_NAME} PRIVATE sertial)
 
 set(TEST_SOURCES
     test_foundation
-    test_binary_io
-    test_reflector
     test_serialization
     test_padding
-    test_size_computation
     test_endianness
     test_hybrid_binary
 )
@@ -93,11 +90,8 @@ endforeach()
 # Run all tests
 add_custom_target(run_tests
     COMMAND test_foundation
-    COMMAND test_binary_io
-    COMMAND test_reflector
     COMMAND test_serialization
     COMMAND test_padding
-    COMMAND test_size_computation
     COMMAND test_endianness
     COMMAND test_hybrid_binary
     COMMAND test_example

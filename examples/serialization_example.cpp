@@ -7,7 +7,7 @@
 /// - Zero-allocation serialization with Message<T>::serialize()
 /// - Type-deduced convenience functions: serialize(), deserialize()
 /// - Compile-time buffer sizing (no runtime allocation)
-/// - Batch serialization with write_all() and to_binary_batch()
+/// - Static buffers with stack allocation
 /// - Memory layout analysis and optimization info
 ///
 /// Build: cmake --build build --target serialization_example
@@ -108,9 +108,6 @@ void example_deserialization() {
                   << restored->angular_velocity.y << ", " << restored->angular_velocity.z << ")\n";
         std::cout << "    linear_accel: (" << restored->linear_acceleration.x << ", "
                   << restored->linear_acceleration.y << ", " << restored->linear_acceleration.z << ")\n";
-    } else {
-        std::cout << "\n  Deserialization failed (this is a known limitation for complex nested types)\n";
-        std::cout << "    Note: Low-level BinaryWriter/BinaryReader always works!\n";
     }
     
     // Method 2: Using convenience function
@@ -177,45 +174,7 @@ void example_memory_analysis() {
     std::cout << "  [OK] No runtime overhead for buffer sizing\n";
 }
 
-// ============================================================================
-// Example 4: Batch Serialization
-// ============================================================================
 
-void example_batch_serialization() {
-    std::cout << "\n";
-    std::cout << "============================================================\n";
-    std::cout << "Example 4: Batch Serialization\n";
-    std::cout << "============================================================\n";
-    
-    // Multiple values to serialize together
-    int32_t seq = 42;
-    float x = 1.5f, y = 2.5f, z = 3.5f;
-    
-    // Method 1: BinaryWriter with write_all()
-    BinaryWriter writer;
-    writer.write_all(seq, x, y, z);
-    
-    std::cout << "\n  BinaryWriter::write_all(seq, x, y, z):\n";
-    print_bytes({writer.data().data(), writer.size()});
-    
-    // Method 2: to_binary_batch() - returns vector
-    auto batch = to_binary_batch(seq, x, y, z);
-    
-    std::cout << "\n  to_binary_batch(seq, x, y, z):\n";
-    print_bytes(batch);
-    
-    // Read them back
-    BinaryReader reader(batch);
-    auto r_seq = reader.read<int32_t>();
-    auto r_x = reader.read<float>();
-    auto r_y = reader.read<float>();
-    auto r_z = reader.read<float>();
-    
-    if (r_seq && r_x && r_y && r_z) {
-        std::cout << "\n  Read back: seq=" << *r_seq 
-                  << ", x=" << *r_x << ", y=" << *r_y << ", z=" << *r_z << "\n";
-    }
-}
 
 // ============================================================================
 // Example 4b: Static Buffer (True Zero-Allocation)
@@ -239,21 +198,18 @@ void example_static_buffer() {
     std::cout << "    Type: static_buffer<" << buf.capacity() << "> (STACK allocated)\n";
     print_bytes(buf.view());
     
-    // Method 2: Use a pre-sized static_buffer (e.g., for reuse in a loop)
-    static_buffer<128> reusable_buf;  // Big enough for many types
-    
-    // Serialize multiple different types into the same buffer
+    // Method 2: Serialize different types and reuse the result
     Position<> pos{};
     pos.header.frame_id = 1;
     pos.header.seq = 42;
     pos.pose.position = point;
     
-    serialize_to(pos, reusable_buf);
-    std::cout << "\n  Reusable buffer after Position<>:\n";
-    std::cout << "    Capacity: " << reusable_buf.capacity() << ", Used: " << reusable_buf.size() << "\n";
+    auto pos_buf = serialize(pos);  // Returns static_buffer sized to max capacity
+    std::cout << "\n  Position serialized:\n";
+    std::cout << "    Buffer capacity: " << pos_buf.capacity() << ", Used: " << pos_buf.size() << "\n";
     
     // Deserialize back
-    auto restored = deserialize<Position<>>(reusable_buf);
+    auto restored = deserialize<Position<>>(pos_buf);
     if (restored) {
         std::cout << "    Restored position: (" << restored->pose.position.x << ", "
                   << restored->pose.position.y << ", " << restored->pose.position.z << ")\n";
@@ -374,45 +330,7 @@ void example_error_handling() {
     }
 }
 
-// ============================================================================
-// Example 7: Low-Level BinaryWriter/Reader
-// ============================================================================
 
-void example_low_level_io() {
-    std::cout << "\n";
-    std::cout << "============================================================\n";
-    std::cout << "Example 7: Low-Level BinaryWriter/BinaryReader\n";
-    std::cout << "============================================================\n";
-    
-    // Direct control over serialization
-    BinaryWriter writer;
-    
-    // Write individual fields (primitives only for low-level I/O)
-    writer.write<uint32_t>(42);          // 4 bytes
-    writer.write<float>(3.14159f);       // 4 bytes
-    writer.write<double>(2.71828);       // 8 bytes
-    writer.write<bool>(true);            // 1 byte
-    
-    std::cout << "\n  BinaryWriter manual writes:\n";
-    std::cout << "    Total size: " << writer.size() << " bytes\n";
-    print_bytes({writer.data().data(), writer.size()});
-    
-    // Read back
-    BinaryReader reader({writer.data().data(), writer.size()});
-    
-    auto id = reader.read<uint32_t>();
-    auto value = reader.read<float>();
-    auto e_val = reader.read<double>();
-    auto flag = reader.read<bool>();
-    
-    if (id && value && e_val && flag) {
-        std::cout << "\n  BinaryReader results:\n";
-        std::cout << "    id:    " << *id << "\n";
-        std::cout << "    pi:    " << *value << "\n";
-        std::cout << "    e:     " << *e_val << "\n";
-        std::cout << "    flag:  " << (*flag ? "true" : "false") << "\n";
-    }
-}
 
 // ============================================================================
 // Main
@@ -428,11 +346,9 @@ int main() {
     example_basic_serialization();
     example_deserialization();
     example_memory_analysis();
-    example_batch_serialization();
     example_static_buffer();
     example_performance();
     example_error_handling();
-    example_low_level_io();
     
     std::cout << "\n";
     std::cout << "============================================================\n";

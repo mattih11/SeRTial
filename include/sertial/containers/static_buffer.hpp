@@ -19,13 +19,13 @@ namespace sertial {
 /// @example
 /// ```cpp
 /// // Create buffer with exact size for a type
-/// static_buffer<MemoryMap<Position>::packed_size> buf;
-/// buf.resize(serialize_optimized_to(pos, buf.data()));
+/// static_buffer<HybridMemoryMap<Position>::max_packed_size> buf;
+/// buf.resize(serialize_to(pos, buf.data()));
 /// send(buf.view());
 /// 
-/// // Or use the helper that sizes automatically
-/// auto buf = make_static_buffer<Position>();
-/// buf.resize(serialize_optimized_to(pos, buf.data()));
+/// // Or use serialize() which returns static_buffer directly
+/// auto buf = serialize(pos);
+/// send(buf.view());
 /// ```
 template<std::size_t Capacity>
 class static_buffer {

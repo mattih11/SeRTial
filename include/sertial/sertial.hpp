@@ -36,14 +36,8 @@
 #include "containers/static_buffer.hpp"
 #include "containers/container_traits.hpp"
 
-// I/O (low-level)
-#include "io/binary_writer.hpp"
-#include "io/binary_reader.hpp"
-#include "io/varint.hpp"
-#include "io/optimized_binary.hpp"
-
-// Reflector system
-#include "reflector/binary_reflector.hpp"
+// I/O
+#include "io/unified_binary.hpp"
 
 // Integration
 #include "integration/message_collection.hpp"

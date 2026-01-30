@@ -1,7 +1,7 @@
 /// Test: Serialization - High-level serialize/deserialize API
-/// Tests optimized binary serialization with compile-time analysis
+/// Tests unified binary serialization with compile-time analysis
 #include "test_framework.hpp"
-#include <sertial/io/optimized_binary.hpp>
+#include <sertial/io/unified_binary.hpp>
 #include <sertial/containers/fixed_string.hpp>
 #include <sertial/containers/fixed_vector.hpp>
 #include <cmath>

@@ -29,6 +29,44 @@ struct is_fixed_container_impl<fixed_string<N>> : std::true_type {};
 template<typename T>
 inline constexpr bool is_fixed_container_v = is_fixed_container_impl<T>::value;
 
+/// @brief Get capacity of fixed container at compile-time
+template<typename T>
+struct fixed_container_capacity {
+    static constexpr std::size_t value = 0;
+};
+
+template<typename T, std::size_t N>
+struct fixed_container_capacity<fixed_vector<T, N>> {
+    static constexpr std::size_t value = N;
+};
+
+template<std::size_t N>
+struct fixed_container_capacity<fixed_string<N>> {
+    static constexpr std::size_t value = N;
+};
+
+template<typename T>
+inline constexpr std::size_t fixed_container_capacity_v = fixed_container_capacity<T>::value;
+
+/// @brief Get element size of fixed container at compile-time
+template<typename T>
+struct fixed_container_element_size {
+    static constexpr std::size_t value = 0;
+};
+
+template<typename T, std::size_t N>
+struct fixed_container_element_size<fixed_vector<T, N>> {
+    static constexpr std::size_t value = sizeof(T);
+};
+
+template<std::size_t N>
+struct fixed_container_element_size<fixed_string<N>> {
+    static constexpr std::size_t value = sizeof(char);
+};
+
+template<typename T>
+inline constexpr std::size_t fixed_container_element_size_v = fixed_container_element_size<T>::value;
+
 /// @brief Check if any field in a NamedTuple is a fixed container
 template<typename... Fields>
 constexpr bool has_fixed_containers(rfl::NamedTuple<Fields...>*) {

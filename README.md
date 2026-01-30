@@ -14,10 +14,11 @@ You should have received a copy of the GNU General Public License along with thi
 
 ## Key Features
 
-- **Zero Runtime Allocation**: Stack-allocated buffers with compile-time size computation
+- **Zero Runtime Allocation**: Stack-allocated buffers with compile-time max size computation
 - **Compile-Time Reflection**: Automatic struct serialization via reflect-cpp
-- **Padding Analysis**: Detects struct padding, optimizes memcpy operations
-- **Memory Mapping**: Compile-time field layout analysis
+- **Variable-Size Fields**: Support for `fixed_vector<T,N>` and `fixed_string<N>` with runtime sizes
+- **HybridMemoryMap**: Unified serialization for both fixed and variable-size types
+- **Block-Based Optimization**: Efficient block execution for optimal performance
 - **Simple API**: `serialize(obj)` / `deserialize<T>(data)`
 
 ## Quick Start
@@ -43,8 +44,8 @@ int main() {
     auto restored = deserialize<Player>(buffer.view());
     
     // Compile-time analysis
-    static_assert(Message<Player>::packed_size == 20);
-    static_assert(!Message<Player>::has_padding);
+    static_assert(HybridMemoryMap<Player>::base_packed_size == 20);
+    static_assert(!HybridMemoryMap<Player>::has_variable_fields);
 }
 ```
 
@@ -82,11 +83,10 @@ cd build
 
 # Individual test suites
 ./test_foundation       # Core containers and type traits
-./test_binary_io        # BinaryWriter, BinaryReader, varint
-./test_reflector        # Type-specific serialization handlers
 ./test_serialization    # High-level serialize/deserialize API
 ./test_padding          # Padding analysis
-./test_size_computation # Compile-time size computation
+./test_hybrid_binary    # HybridMemoryMap and variable-size serialization
+./test_endianness       # Endianness conversion
 
 # Run all tests
 make run_tests
@@ -135,16 +135,7 @@ cd build
    constexpr auto fields = Message<Position<>>::field_count;
    ```
 
-4. **Batch Serialization**
-   ```cpp
-   uint32_t seq = 42;
-   float x = 1.5f, y = 2.5f, z = 3.5f;
-   
-   // Serialize multiple values at once
-   auto batch = to_binary_batch(seq, x, y, z);
-   ```
-
-5. **Static Buffers**
+4. **Static Buffers**
    ```cpp
    // Pre-defined buffer sizes for reuse
    static_buffer_128 buffer;  // 128-byte stack buffer
@@ -216,12 +207,13 @@ Shows:
 namespace sertial {
 
 // Serialize a value to a stack-allocated buffer
+// Returns static_buffer<max_packed_size> where max size is computed at compile-time
 template<typename T>
-auto serialize(const T& value) -> static_buffer<MemoryMap<T>::packed_size>;
+auto serialize(const T& value) -> static_buffer<HybridMemoryMap<T>::max_packed_size>;
 
-// Serialize into an existing buffer
-template<typename T, size_t N>
-void serialize_to(const T& value, static_buffer<N>& buffer);
+// Serialize into an existing buffer (returns actual bytes written)
+template<typename T>
+std::size_t serialize_to(const T& value, std::byte* dest);
 
 // Deserialize from bytes
 template<typename T>
@@ -236,17 +228,17 @@ std::optional<T> deserialize(std::span<const std::byte> data);
 template<typename T>
 struct Message {
     // Compile-time information
-    static constexpr std::size_t packed_size;      // Size without padding
-    static constexpr std::size_t max_buffer_size;  // Max serialized size
-    static constexpr bool has_padding;             // Has struct padding?
+    static constexpr std::size_t max_buffer_size;  // Max serialized size (HybridMemoryMap::max_packed_size)
+    static constexpr bool has_variable_fields;     // Has variable-size fields?
     static constexpr std::size_t field_count;      // Number of fields
-    static constexpr std::size_t memcpy_count;     // Memcpy operations needed
-    static constexpr bool can_single_memcpy;       // Can use single memcpy?
     
     using buffer_type = std::array<std::byte, max_buffer_size>;
     
-    // Serialization
-    static Result serialize(const T& value);
+    // Serialization (returns actual bytes written)
+    static std::size_t serialize_to(const T& value, buffer_type& buffer);
+    
+    // Convenience wrapper (returns static_buffer)
+    static auto to_buffer(const T& value);
     
     // Deserialization
     static DeserializeResult<T> deserialize(std::span<const std::byte> data);
@@ -316,8 +308,7 @@ SeRTial/
 │   ├── message.hpp              # Message<T> API
 │   ├── core/                    # Concepts, traits, type analysis
 │   ├── containers/              # fixed_string, fixed_vector, static_buffer
-│   ├── io/                      # BinaryWriter, BinaryReader, optimized_binary
-│   ├── reflector/               # Type-specific reflectors
+│   ├── io/                      # unified_binary
 │   ├── integration/             # Schema generator, runtime tests
 │   └── debug/                   # print_utils
 ├── src/
@@ -330,11 +321,10 @@ SeRTial/
 │   └── messages/                # Example message types
 ├── test/
 │   ├── test_foundation.cpp      # Container and traits tests
-│   ├── test_binary_io.cpp       # I/O primitive tests
-│   ├── test_reflector.cpp       # Reflector tests
 │   ├── test_serialization.cpp   # High-level API tests
 │   ├── test_padding.cpp         # Padding analysis tests
-│   └── test_size_computation.cpp
+│   ├── test_endianness.cpp      # Endianness conversion tests
+│   └── test_hybrid_binary.cpp   # HybridMemoryMap tests
 └── scripts/
     ├── visualize_schema.py      # CLI schema visualizer
     └── visualize_schema_gui.py  # GUI schema visualizer
@@ -386,10 +376,36 @@ python3 ../scripts/visualize_schema.py ../scripts/message_schemas.json --summary
 The GUI viewer (`scripts/visualize_schema_gui.py`) provides:
 
 - **Message Browser**: Browse all message types by category
+  - `[1]` = Single memcpy (fixed-size, fastest)
+  - `o` = Multiple memcpy regions (field splitting)
+  - `P` = Has padding between fields
+  - `~` = Has variable-size fields (new!)
 - **Memory Layout Visualization**: See struct layout with color-coded fields
 - **Padding Analysis**: Visual highlighting of padding bytes between fields
 - **Memcpy Region Display**: Shows optimized copy regions for serialization
 - **Field Details Table**: Offsets, sizes, types, and padding information
+
+#### Interactive Variable-Size Field Controls (NEW!)
+
+For messages with variable-size fields (vectors, strings, etc.):
+
+- **Interactive Sliders**: Adjust element counts for each variable field
+- **Runtime Size Calculator**: Real-time display of serialized size based on slider values
+- **Dynamic Layout Visualization**: Three memory bars show:
+  1. **Struct layout**: In-memory representation with maximum capacity
+  2. **Max capacity**: Serialized with all containers at maximum size
+  3. **Runtime layout**: Actual serialized format based on current slider values
+- **Block Execution Order**: Visual representation of HybridMemoryMap blocks:
+  - Fixed blocks (blue/green): Contiguous fixed-size fields
+  - Length prefixes (gray): 4-byte headers before dynamic fields
+  - Dynamic blocks (striped): Variable-size container data
+  - Runtime offset blocks: Fields that shift position based on dynamic content
+
+Example: PointCloud message with `vector<Point3D>`:
+- Base size: 32 bytes (header fields)
+- Dynamic field: 4-byte length prefix + N×12 bytes (N points)
+- Adjust slider from 0 to 256 elements to see size change from 36 to 3108 bytes
+- Watch the third memory bar update to show actual serialized layout
 
 ### CLI Visualizer
 
