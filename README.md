@@ -76,6 +76,47 @@ cmake ..
 cmake --build .
 ```
 
+## Installing SeRTial
+
+SeRTial is a header-only library and can be installed system-wide:
+
+```bash
+cd build
+sudo cmake --install .
+```
+
+This installs:
+- **Headers**: `/usr/local/include/sertial/` - All library headers
+- **Examples**: `/usr/local/include/sertial/examples/` - Example message types for reference
+- **CMake Config**: `/usr/local/lib/cmake/SeRTial/` - For `find_package(SeRTial)`
+- **Tools**: `/usr/local/bin/` - Python inspection tools:
+  - `sertial-inspect` - CLI schema visualizer
+  - `sertial-gui` - GUI schema viewer
+
+### Using Installed SeRTial
+
+In your project's CMakeLists.txt:
+
+```cmake
+find_package(SeRTial REQUIRED)
+target_link_libraries(your_target PRIVATE SeRTial::sertial)
+```
+
+### Using the Inspection Tools
+
+After installation, the Python tools are available system-wide:
+
+```bash
+# Generate schema from your app
+./your_app --generate-schema my_schemas.json
+
+# Inspect via CLI
+sertial-inspect my_schemas.json --summary
+
+# Launch GUI viewer
+sertial-gui my_schemas.json
+```
+
 ## Running Tests
 
 ```bash
@@ -382,8 +423,8 @@ SeRTial/
 │   ├── test_endianness.cpp      # Endianness conversion tests
 │   └── test_hybrid_binary.cpp   # HybridMemoryMap and variable-size tests
 └── scripts/
-    ├── visualize_schema.py      # CLI schema visualizer
-    └── visualize_schema_gui.py  # GUI schema visualizer
+    ├── sertial-inspect          # CLI schema visualizer
+    └── sertial-gui              # GUI schema visualizer
 ```
 
 ## Architecture
@@ -480,7 +521,7 @@ SeRTial includes powerful tools to inspect and visualize your message types at r
 
 1. **Schema Generation**: The C++ example `schema_example.cpp` (or the `make generate_schemas` target) generates a JSON schema file (typically `message_schemas.json`) describing all registered message types, including field names, types, sizes, offsets, padding, and memcpy regions.
 
-2. **Visualization**: The viewer scripts (`scripts/visualize_schema.py` for CLI, `scripts/visualize_schema_gui.py` for GUI) read this JSON schema file to provide interactive or terminal-based exploration of your message layouts.
+2. **Visualization**: The viewer scripts (`scripts/sertial-inspect` for CLI, `scripts/sertial-gui` for GUI) read this JSON schema file to provide interactive or terminal-based exploration of your message layouts.
 
 3. **Automated Workflow**: The `make viewer` target automates this process:
     - Runs the schema generator to produce the latest `message_schemas.json`
@@ -505,15 +546,15 @@ You can also generate schemas and launch viewers manually:
 ./schema_example ../scripts/message_schemas.json
 
 # Launch GUI viewer
-python3 ../scripts/visualize_schema_gui.py ../scripts/message_schemas.json
+python3 ../scripts/sertial-gui ../scripts/message_schemas.json
 
 # Or use the CLI viewer
-python3 ../scripts/visualize_schema.py ../scripts/message_schemas.json --summary
+python3 ../scripts/sertial-inspect ../scripts/message_schemas.json --summary
 ```
 
 ### GUI Viewer Features
 
-The GUI viewer (`scripts/visualize_schema_gui.py`) provides:
+The GUI viewer (`scripts/sertial-gui`) provides:
 
 - **Message Browser**: Browse all message types by category
   - `[1]` = Single memcpy (fixed-size, fastest)
@@ -553,13 +594,13 @@ For terminal-based inspection:
 
 ```bash
 # Summary of all messages
-python3 scripts/visualize_schema.py scripts/message_schemas.json --summary
+python3 scripts/sertial-inspect scripts/message_schemas.json --summary
 
 # Detailed view of specific message
-python3 scripts/visualize_schema.py scripts/message_schemas.json --message Header
+python3 scripts/sertial-inspect scripts/message_schemas.json --message Header
 
 # All messages with full details
-python3 scripts/visualize_schema.py scripts/message_schemas.json --all
+python3 scripts/sertial-inspect scripts/message_schemas.json --all
 ```
 
 

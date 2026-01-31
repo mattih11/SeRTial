@@ -6,6 +6,9 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Include standard installation directories
+include(GNUInstallDirs)
+
 # Find reflect-cpp package
 find_package(reflectcpp REQUIRED)
 
@@ -125,7 +128,7 @@ add_custom_target(generate_schemas
 )
 
 add_custom_target(visualize
-    COMMAND python3 ${CMAKE_SOURCE_DIR}/scripts/visualize_schema.py ${CMAKE_SOURCE_DIR}/scripts/message_schemas.json
+    COMMAND python3 ${CMAKE_SOURCE_DIR}/scripts/sertial-inspect ${CMAKE_SOURCE_DIR}/scripts/message_schemas.json
     DEPENDS generate_schemas
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     COMMENT "Visualizing message schemas..."
@@ -136,8 +139,71 @@ add_custom_target(viewer
     COMMAND ${CMAKE_COMMAND} -E echo "Generating schemas..."
     COMMAND schema_example ${CMAKE_SOURCE_DIR}/scripts/message_schemas.json
     COMMAND ${CMAKE_COMMAND} -E echo "Launching GUI viewer..."
-    COMMAND python3 ${CMAKE_SOURCE_DIR}/scripts/visualize_schema_gui.py ${CMAKE_SOURCE_DIR}/scripts/message_schemas.json
+    COMMAND python3 ${CMAKE_SOURCE_DIR}/scripts/sertial-gui ${CMAKE_SOURCE_DIR}/scripts/message_schemas.json
     DEPENDS schema_example
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     COMMENT "Generating schemas and launching GUI viewer..."
 )
+
+# ============================================================================
+# Installation
+# ============================================================================
+
+# Install header files
+install(DIRECTORY include/sertial
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    FILES_MATCHING PATTERN "*.hpp"
+)
+
+# Install example message types (optional, users may want these as references)
+install(DIRECTORY examples/defines examples/messages
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/sertial/examples
+    FILES_MATCHING PATTERN "*.hpp"
+)
+
+# Install Python scripts as executables
+install(PROGRAMS scripts/sertial-inspect
+    DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+
+install(PROGRAMS scripts/sertial-gui
+    DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+
+# Install CMake package configuration
+include(CMakePackageConfigHelpers)
+
+# Generate SeRTialConfig.cmake
+configure_package_config_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/SeRTialConfig.cmake.in
+    ${CMAKE_CURRENT_BINARY_DIR}/SeRTialConfig.cmake
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/SeRTial
+)
+
+# Generate version file
+write_basic_package_version_file(
+    ${CMAKE_CURRENT_BINARY_DIR}/SeRTialConfigVersion.cmake
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY SameMajorVersion
+)
+
+# Install CMake config files
+install(FILES
+    ${CMAKE_CURRENT_BINARY_DIR}/SeRTialConfig.cmake
+    ${CMAKE_CURRENT_BINARY_DIR}/SeRTialConfigVersion.cmake
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/SeRTial
+)
+
+# Install target
+install(TARGETS sertial
+    EXPORT SeRTialTargets
+    INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+
+# Install export
+install(EXPORT SeRTialTargets
+    FILE SeRTialTargets.cmake
+    NAMESPACE SeRTial::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/SeRTial
+)
+
