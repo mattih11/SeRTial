@@ -1,0 +1,10 @@
+# SeRTial Python Tools Requirements
+# For schema visualization and inspection
+
+# GUI viewer dependencies
+tkinter-page>=0.0.1  # Usually comes with Python, but listed for completeness
+
+# Note: tkinter is typically included with Python installations
+# On Debian/Ubuntu: sudo apt-get install python3-tk
+# On Fedora: sudo dnf install python3-tkinter
+# On macOS: included with Python from python.org
