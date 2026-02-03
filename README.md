@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="docs/SeRTial.svg" alt="SeRTial Logo" width="400"/>
+</div>
+
 # SeRTial
 
 A high-performance, zero-allocation C++20 binary serialization library using compile-time reflection with [reflect-cpp](https://github.com/getml/reflect-cpp).

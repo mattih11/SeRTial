@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   width="275"
+   height="84"
+   viewBox="0 0 274.99999 84"
+   fill="none"
+   version="1.1"
+   id="svg4"
+   sodipodi:docname="SeRTial.svg"
+   inkscape:version="1.4.3 (fcd0343856, 2026-01-01)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs4" />
+  <sodipodi:namedview
+     id="namedview4"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     showguides="false"
+     inkscape:zoom="4.4439015"
+     inkscape:cx="107.11308"
+     inkscape:cy="22.390235"
+     inkscape:window-width="1534"
+     inkscape:window-height="931"
+     inkscape:window-x="66"
+     inkscape:window-y="32"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg4" />
+  <!-- Icon -->
+  <g
+     transform="matrix(0.99456795,0,0,0.77627657,11.488172,16.763763)"
+     id="g3"
+     style="stroke-width:5.00757206;stroke-dasharray:none">
+    <!-- Packet -->
+    <path
+       id="rect1"
+       style="stroke:currentColor;stroke-width:5.00757206;stroke-dasharray:none"
+       d="m 64,50 c 0,7.756 -6.244,14 -14,14 H 14 C 6.244,64 0,57.756 0,50 V 14 C 0,6.244 6.244,0 14,0 h 36 c 7.756,0 14,6.244 14,14"
+       sodipodi:nodetypes="cssssssc" />
+    <!-- Template brackets -->
+    <!-- Centered flash inside <> (center x=32) -->
+    <path
+       d="m 33.292034,16.212565 -6.028292,16 h 6.028292 l -3.014146,14 9.042439,-16 h -6.028293 l 3.014147,-14 z"
+       fill="currentColor"
+       id="path3"
+       style="stroke-width:5.00757206;stroke-dasharray:none" />
+  </g>
+  <!-- Wordmark -->
+  <text
+     x="104"
+     y="56"
+     font-family="ui-sans-serif, system-ui, '-apple-system', 'Segoe UI', Roboto, Helvetica, Arial"
+     font-size="38px"
+     font-weight="700"
+     letter-spacing="0.4"
+     fill="currentColor"
+     id="text3"><tspan
+       style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-family:Monospace;-inkscape-font-specification:'Monospace Bold'"
+       id="tspan4">SeRTial</tspan></text>
+  <text
+     x="66.680634"
+     y="44.15564"
+     font-family="ui-sans-serif, system-ui, '-apple-system', 'Segoe UI', Roboto, Helvetica, Arial"
+     font-size="37.5294px"
+     font-weight="700"
+     letter-spacing="0.4"
+     fill="currentColor"
+     id="text3-8"
+     style="font-size:30.6667px;line-height:0;letter-spacing:-6.27px;stroke-width:0.987612"
+     transform="scale(0.98755211,1.0126048)"><tspan
+       style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:30.6667px;line-height:0;font-family:Monospace;-inkscape-font-specification:'Monospace Bold';letter-spacing:-6.27px;stroke-width:0.987612"
+       id="tspan4-9"><tspan
+   style="font-size:30.6667px;letter-spacing:-6.27px;fill:#808080"
+   id="tspan11">.</tspan>..</tspan></text>
+  <text
+     x="73.417725"
+     y="46.679073"
+     font-family="ui-sans-serif, system-ui, '-apple-system', 'Segoe UI', Roboto, Helvetica, Arial"
+     font-size="38px"
+     font-weight="700"
+     letter-spacing="0.4"
+     fill="currentColor"
+     id="text3-8-5"
+     style="fill:#ffffff"><tspan
+       style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-family:Monospace;-inkscape-font-specification:'Monospace Bold';fill:#ffffff"
+       id="tspan4-9-0"><tspan
+         style="fill:#000000"
+         id="tspan6" /></tspan></text>
+  <!-- Optional small tagline (delete this block if you want even cleaner) -->
+  <text
+     x="85"
+     y="71"
+     font-family="ui-sans-serif, system-ui, '-apple-system', 'Segoe UI', Roboto, Helvetica, Arial"
+     font-size="14px"
+     font-weight="600"
+     letter-spacing="0.6"
+     fill="currentColor"
+     opacity="0.6"
+     id="text4"
+     style="font-size:13.3333px">compile-time serialization</text>
+  <text
+     x="23.798433"
+     y="43.126896"
+     font-family="ui-sans-serif, system-ui, '-apple-system', 'Segoe UI', Roboto, Helvetica, Arial"
+     font-size="38px"
+     font-weight="700"
+     letter-spacing="0.54777"
+     fill="currentColor"
+     id="text3-6"
+     style="font-size:36.518px;stroke-width:1.36943"
+     transform="scale(0.75506152,1.3243954)"><tspan
+       style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:36.518px;font-family:Monospace;-inkscape-font-specification:'Monospace Bold';stroke-width:1.36943"
+       id="tspan4-6">&lt; &gt;</tspan></text>
+  <text
+     xml:space="preserve"
+     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:26.6667px;line-height:8.3;font-family:Monospace;-inkscape-font-specification:Monospace;writing-mode:lr-tb;direction:ltr;fill:#000000"
+     x="106.89463"
+     y="-0.37683183"
+     id="text5"><tspan
+       sodipodi:role="line"
+       id="tspan5"
+       x="106.89463"
+       y="-0.37683183"></tspan></text>
+  <path
+     style="fill:#808080;stroke:#000000;stroke-width:4.97845;stroke-dasharray:none;stroke-opacity:1"
+     d="m 75.142086,33.867642 v -3.756059 h 0.05985 v 0"
+     id="path12-3" />
+  <path
+     style="fill:#808080;stroke:#000000;stroke-width:4.97845;stroke-dasharray:none;stroke-opacity:1"
+     d="m 75.142513,55.589113 v -3.756059 h 0.05985 v 0"
+     id="path12-3-8" />
+</svg>

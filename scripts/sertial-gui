@@ -10,7 +10,7 @@ Tkinter-based GUI to visualize message schemas:
 - Variable-size field controls with runtime size calculation
 
 Usage:
-    python visualize_schema_gui.py [schema.json]
+    sertial-gui [schema.json]
 
 Interactive Features:
 - For messages with variable-size fields (marked with ~ in the list):
@@ -34,329 +34,38 @@ from dataclasses import dataclass
 from typing import List, Optional
 from pathlib import Path
 
+# Add scripts directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent))
 
-@dataclass
-class FieldInfo:
-    name: str
-    type: str
-    index: int
-    offset: int
-    size: int
-    packed_offset: int
-    padding_before: int
-    # Variable-length container info
-    is_variable_length: bool = False
-    element_size: int = 0
-    max_elements: int = 0
-    header_size: int = 0
+# Import shared utilities and data structures
+from sertial_common import (
+    SchemaLoader,
+    FieldInfo,
+    BlockInfo,
+    MemcpyRegion,
+    MessageSchema
+)
 
-
-@dataclass
-class BlockInfo:
-    """Information about a serialization block."""
-    type: str  # "Fixed", "Padding", "Dynamic", "RuntimeOffset"
-    src_offset: int
-    dst_offset: int
-    size: int
-    field_index: int
-    field_start: int
-    field_count: int
-    is_variable: bool
-
-
-@dataclass
-class MemcpyRegion:
-    src_offset: int
-    dst_offset: int
-    size: int
-    field_start: int
-    field_count: int
-
-
-@dataclass
-class MessageSchema:
-    name: str
-    category: str
-    sizeof_bytes: int
-    packed_size: int
-    padding_bytes: int
-    field_count: int
-    has_padding: bool
-    can_single_memcpy: bool
-    memcpy_region_count: int
-    fields: List[FieldInfo]
-    memcpy_regions: List[MemcpyRegion]
-    # Hybrid memory map data
-    has_variable_fields: bool = False
-    base_packed_size: int = 0
-    fixed_block_count: int = 0
-    dynamic_block_count: int = 0
-    runtime_offset_block_count: int = 0
-    blocks: List[BlockInfo] = None
-
-
-# Color palette for fields
-FIELD_COLORS = [
-    # dark color palette with distinguishable colors
-    "#c21300",  # Red
-    "#0067ab",  # Blue
-    "#039540",  # Green
-    "#66008f",  # Purple
-    "#c29b00",  # Yellow
-    "#ac5000",  # Orange
-    "#009a7b",  # Turquoise
-    "#004386",  # Dark Blue
-]
-
-PADDING_COLOR = '#7f8c8d'  # Gray
-LENGTH_PREFIX_COLOR = "#ddff00"  # Yellow - distinct from padding
-BG_COLOR = '#2c3e50'       # Dark background
-TEXT_COLOR = '#ecf0f1'     # Light text
-PANEL_BG = '#34495e'       # Panel background
+# Import reusable GUI widgets and color constants
+from sertial_gui_widgets import (
+    MemoryCanvas,
+    FIELD_COLORS,
+    PADDING_COLOR,
+    LENGTH_PREFIX_COLOR,
+    BG_COLOR,
+    TEXT_COLOR,
+    PANEL_BG
+)
 
 
 def load_schemas(filepath: str) -> dict:
-    """Load schemas from JSON file."""
-    with open(filepath, 'r') as f:
-        return json.load(f)
+    """Load schemas from JSON file using common library."""
+    return SchemaLoader.load_file(filepath)
 
 
 def parse_message(data: dict) -> MessageSchema:
-    """Parse a message schema from JSON data."""
-    # Get field names and types as separate arrays
-    field_names = data.get('field_names', [])
-    field_types = data.get('field_types', [])
-    field_infos = data.get('field_info', [])
-    
-    # Combine into FieldInfo objects
-    fields = []
-    for i, info in enumerate(field_infos):
-        name = field_names[i] if i < len(field_names) else f"field_{i}"
-        ftype = field_types[i] if i < len(field_types) else "unknown"
-        fields.append(FieldInfo(
-            name=name,
-            type=ftype,
-            index=info.get('index', i),
-            offset=info.get('offset', 0),
-            size=info.get('size', 0),
-            packed_offset=info.get('packed_offset', 0),
-            padding_before=info.get('padding_before', 0),
-            is_variable_length=info.get('is_variable_length', False),
-            element_size=info.get('element_size', 0),
-            max_elements=info.get('max_elements', 0),
-            header_size=info.get('header_size', 0)
-        ))
-    
-    # Parse memcpy regions
-    memcpy_regions = [
-        MemcpyRegion(
-            src_offset=r.get('src_offset', 0),
-            dst_offset=r.get('dst_offset', 0),
-            size=r.get('size', 0),
-            field_start=r.get('field_start', 0),
-            field_count=r.get('field_count', 0)
-        )
-        for r in data.get('memcpy_regions', [])
-    ]
-    
-    # Parse blocks
-    blocks = [
-        BlockInfo(
-            type=b.get('type', 'Fixed'),
-            src_offset=b.get('src_offset', 0),
-            dst_offset=b.get('dst_offset', 0),
-            size=b.get('size', 0),
-            field_index=b.get('field_index', -1),
-            field_start=b.get('field_start', -1),
-            field_count=b.get('field_count', 0),
-            is_variable=b.get('is_variable', False)
-        )
-        for b in data.get('blocks', [])
-    ]
-    
-    return MessageSchema(
-        name=data.get('name', ''),
-        category=data.get('category', ''),
-        sizeof_bytes=data.get('sizeof_bytes', 0),
-        packed_size=data.get('packed_size', 0),
-        padding_bytes=data.get('padding_bytes', 0),
-        field_count=data.get('field_count', 0),
-        has_padding=data.get('has_padding', False),
-        can_single_memcpy=data.get('can_single_memcpy', False),
-        memcpy_region_count=data.get('memcpy_region_count', 0),
-        fields=fields,
-        memcpy_regions=memcpy_regions,
-        has_variable_fields=data.get('has_variable_fields', False),
-        base_packed_size=data.get('base_packed_size', data.get('packed_size', 0)),
-        fixed_block_count=data.get('fixed_block_count', 0),
-        dynamic_block_count=data.get('dynamic_block_count', 0),
-        runtime_offset_block_count=data.get('runtime_offset_block_count', 0),
-        blocks=blocks if blocks else []
-    )
-
-
-class MemoryCanvas(tk.Canvas):
-    """Canvas for drawing memory layout visualizations."""
-    
-    def __init__(self, parent, **kwargs):
-        super().__init__(parent, bg=PANEL_BG, highlightthickness=0, **kwargs)
-        self.tooltip = None
-        self.tooltip_id = None
-        self.all_regions = []  # Store all regions from all bars
-        
-        # Bind mouse events for tooltips
-        self.bind('<Motion>', self._on_motion)
-        self.bind('<Leave>', self._hide_tooltip)
-        
-    def clear_regions(self):
-        """Clear all stored regions."""
-        self.all_regions = []
-        
-    def draw_memory_bar(self, x, y, width, height, total_size, regions, label="", 
-                        show_empty_bg=True, reference_size=None):
-        """
-        Draw a memory bar with colored regions.
-        regions: List of (start, length, color, label, field_info, is_variable, var_info)
-                 where var_info is (element_size, max_elements) or None
-        show_empty_bg: If True, show gray background for unused space. If False, just outline.
-        reference_size: If provided, scale positions to this size for alignment (bar always full width).
-        """
-        if total_size == 0:
-            return
-        
-        # Use reference_size for scaling positions, bar always uses full width
-        scale_size = reference_size if reference_size else total_size
-        
-        # Draw label
-        self.create_text(x, y - 5, text=label, fill=TEXT_COLOR, anchor='sw', 
-                        font=('Consolas', 8, 'bold'))
-        
-        # Calculate where data ends (for showing size label)
-        data_end_x = x + int(width * total_size / scale_size)
-        
-        # Draw full-width outer frame
-        self.create_rectangle(x, y, x + width, y + height, 
-                             fill='', outline='#555555', width=1)
-        
-        # Draw background for the actual data portion
-        if show_empty_bg:
-            # Solid gray background for padding/unused
-            self.create_rectangle(x + 1, y + 1, data_end_x - 1, y + height - 1, 
-                                 fill=PADDING_COLOR, outline='')
-        else:
-            # Subtle background for serialized
-            self.create_rectangle(x + 1, y + 1, data_end_x - 1, y + height - 1, 
-                                 fill='#3d566e', outline='')
-        
-        # Draw each region (scaled to reference_size so both bars align)
-        for region_data in regions:
-            # Support both old and new format
-            if len(region_data) >= 7:
-                start, length, color, name, info, is_variable, var_info = region_data
-            else:
-                start, length, color, name, info = region_data
-                is_variable = False
-                var_info = None
-            
-            if length == 0:
-                continue
-            
-            # Scale positions to reference_size for alignment
-            rx = x + int(start * width / scale_size)
-            rx_end = x + int((start + length) * width / scale_size)
-            rw = max(rx_end - rx, 2)
-            
-            # Draw the base rectangle
-            self.create_rectangle(rx, y + 1, rx + rw, y + height - 1,
-                                 fill=color, outline='#1a252f')
-            
-            # Draw diagonal stripes for variable-length fields
-            if is_variable and rw > 10:
-                self._draw_stripes(rx, y + 1, rx + rw, y + height - 1, color)
-            
-            # Store region info for tooltips
-            self.all_regions.append((rx, y, rx + rw, y + height, name, info))
-            
-            # Draw field name if there's enough space
-            if rw > 40:
-                display_name = name[:8] if len(name) > 8 else name
-                # Add ~ prefix for variable-length fields
-                if is_variable:
-                    display_name = "~" + display_name[:7]
-                self.create_text(rx + rw/2, y + height/2, text=display_name,
-                               fill='white', font=('Consolas', 8))
-        
-        # Draw size label at end of data
-        self.create_text(data_end_x + 5, y + height/2, 
-                        text=f"{total_size}B", fill=TEXT_COLOR, anchor='w',
-                        font=('Consolas', 8))
-    
-    def _draw_stripes(self, x1, y1, x2, y2, base_color):
-        """Draw diagonal stripes to indicate variable-length region."""
-        # Create a slightly darker color for stripes
-        stripe_spacing = 8
-        stripe_width = 3
-        
-        # Darken the base color
-        r = int(base_color[1:3], 16)
-        g = int(base_color[3:5], 16)
-        b = int(base_color[5:7], 16)
-        dark_color = f'#{max(0,r-40):02x}{max(0,g-40):02x}{max(0,b-40):02x}'
-        
-        # Draw diagonal stripes from bottom-left to top-right
-        for offset in range(-int(y2-y1), int(x2-x1) + int(y2-y1), stripe_spacing):
-            # Line from (x1+offset, y2) to (x1+offset+(y2-y1), y1)
-            lx1 = x1 + offset
-            ly1 = y2
-            lx2 = x1 + offset + (y2 - y1)
-            ly2 = y1
-            
-            # Clip to rectangle bounds
-            if lx2 < x1 or lx1 > x2:
-                continue
-            
-            # Adjust line endpoints to stay within bounds
-            if lx1 < x1:
-                ratio = (x1 - lx1) / (lx2 - lx1) if lx2 != lx1 else 0
-                ly1 = ly1 + ratio * (ly2 - ly1)
-                lx1 = x1
-            if lx2 > x2:
-                ratio = (x2 - lx1) / (lx2 - lx1) if lx2 != lx1 else 0
-                ly2 = ly1 + ratio * (ly2 - ly1)
-                lx2 = x2
-            
-            self.create_line(lx1, ly1, lx2, ly2, fill=dark_color, width=stripe_width)
-    
-    def _on_motion(self, event):
-        """Show tooltip when hovering over a region."""
-        for rx1, ry1, rx2, ry2, name, info in self.all_regions:
-            if rx1 <= event.x <= rx2 and ry1 <= event.y <= ry2:
-                self._show_tooltip(event.x, event.y, name, info)
-                return
-        self._hide_tooltip()
-    
-    def _show_tooltip(self, x, y, name, info):
-        """Display tooltip with field information."""
-        if self.tooltip:
-            self._hide_tooltip()
-        
-        self.tooltip = tk.Toplevel(self)
-        self.tooltip.wm_overrideredirect(True)
-        self.tooltip.wm_geometry(f"+{self.winfo_rootx() + x + 10}+{self.winfo_rooty() + y + 10}")
-        
-        frame = tk.Frame(self.tooltip, bg='#2c3e50', relief='solid', borderwidth=1)
-        frame.pack()
-        
-        text = f"{name}\n{info}"
-        label = tk.Label(frame, text=text, bg='#2c3e50', fg='white',
-                        font=('Consolas', 8), justify='left', padx=5, pady=3)
-        label.pack()
-    
-    def _hide_tooltip(self, event=None):
-        """Hide the tooltip."""
-        if self.tooltip:
-            self.tooltip.destroy()
-            self.tooltip = None
+    """Parse a message schema from JSON data using common library."""
+    return SchemaLoader.parse_message(data)
 
 
 class SchemaVisualizerApp:
@@ -570,11 +279,18 @@ class SchemaVisualizerApp:
 
         for msg in self.messages:
             if category == 'All' or msg.category == category:
-                # [1] means single memcpy, o means multiple regions
-                status = "[1]" if msg.can_single_memcpy else "o"
-                padding = "P" if msg.has_padding else " "
-                variable = "~" if msg.has_variable_fields else " "
-                self.message_list.insert(tk.END, f"{status}{padding}{variable} {msg.name}")
+                # Use consistent flag formatting
+                flags = self._get_message_flags(msg)
+                self.message_list.insert(tk.END, f"{flags} {msg.name}")
+    
+    @staticmethod
+    def _get_message_flags(msg: MessageSchema) -> str:
+        """Get formatted flag string for a message."""
+        # [1] means single memcpy, o means multiple regions
+        status = "[1]" if msg.can_single_memcpy else "o"
+        padding = "P" if msg.has_padding else " "
+        variable = "~" if msg.has_variable_fields else " "
+        return f"{status}{padding}{variable}"
     
     def _on_message_select(self, event):
         """Handle message selection."""
