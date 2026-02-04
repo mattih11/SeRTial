@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="docs/SeRTial.svg" alt="SeRTial Logo" width="400"/>
+  <img src="docs/SeRTial.png" alt="SeRTial Logo" width="400"/>
 </div>
 
 # SeRTial
