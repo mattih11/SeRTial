@@ -207,14 +207,9 @@ std::size_t serialize_to_unified(const T& value, std::byte* dest) {
             case BlockType::Dynamic: {
                 // Execute dynamic block (container serialization)
                 const auto& block = HMM::dynamic_blocks[descriptor.index];
-                // Visit field, serialize container with length prefix
-                if constexpr (is_ring_buffer_v<FieldType>) {
-                    // RingBuffer special case
-                    serialize_ring_buffer(field, dest + current_offset);
-                } else {
-                    // Regular container
-                    serialize_container(field, dest + current_offset);
-                }
+                // Visit field, serialize container with generic span-based approach
+                // All containers (fixed_vector, fixed_string, RingBuffer) use same path
+                serialize_container(field, dest + current_offset);
                 break;
             }
             // ... RuntimeOffset, Padding ...
@@ -224,7 +219,7 @@ std::size_t serialize_to_unified(const T& value, std::byte* dest) {
 }
 ```
 
-**Key Insight**: unified_binary.hpp contains NO type analysis - it just executes HybridMemoryMap's compile-time plan at runtime.
+**Key Insight**: unified_binary.hpp contains NO type analysis and NO special cases - it just executes HybridMemoryMap's compile-time plan at runtime using generic span-based serialization.
 
 **Analogy**:
 - **HybridMemoryMap** = Compiler (analyzes source → generates bytecode)

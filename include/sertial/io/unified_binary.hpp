@@ -3,6 +3,7 @@
 #include "../core/traits/hybrid_memory_map.hpp"
 #include "../containers/static_buffer.hpp"
 #include "../containers/ring_buffer.hpp"
+#include "../containers/container_registration.hpp"
 #include <cstring>
 #include <span>
 #include <optional>
@@ -10,17 +11,30 @@
 namespace sertial {
 
 // ============================================================================
-// RingBuffer Serialization Helpers
+// Generic Container Serialization (Span-Based)
 // ============================================================================
 
 namespace detail {
 
-/// @brief Serialize RingBuffer with wrap-around handling
-/// @return Bytes written (length prefix + data)
-template<typename T, std::size_t N>
-inline std::size_t serialize_ring_buffer(const RingBuffer<T, N>& buf, std::byte* dest) {
-    // Write length prefix
-    uint32_t length = static_cast<uint32_t>(buf.size());
+/**
+ * @brief Serialize any SerializableContainer using span-based views
+ * 
+ * This generic function works for ALL containers (fixed_vector, fixed_string, RingBuffer)
+ * without type-specific branching. Containers provide their serialization views via
+ * get_serialization_spans(), which returns 1-2 spans covering all data.
+ * 
+ * @tparam Container SerializableContainer type
+ * @param container Container instance to serialize
+ * @param dest Destination buffer
+ * @return Bytes written (length prefix + data)
+ */
+template<SerializableContainer Container>
+inline std::size_t serialize_container(const Container& container, std::byte* dest) {
+    using element_type = typename Container::value_type;
+    constexpr std::size_t elem_size = sizeof(element_type);
+    
+    // Write length prefix (uint32_t)
+    uint32_t length = static_cast<uint32_t>(container.size());
     std::memcpy(dest, &length, sizeof(uint32_t));
     
     if (length == 0) {
@@ -28,28 +42,20 @@ inline std::size_t serialize_ring_buffer(const RingBuffer<T, N>& buf, std::byte*
     }
     
     std::byte* data_dest = dest + sizeof(uint32_t);
-    constexpr std::size_t elem_size = sizeof(T);
+    std::size_t offset = 0;
     
-    // Check if data wraps around
-    if (buf.is_wrapped()) {
-        // Two-region copy: tail → end, then start → head
-        std::size_t first_chunk = buf.capacity() - buf.tail_index();
+    // Get serialization spans (compile-time dispatch via serialization_view_provider)
+    auto spans = get_serialization_spans(container);
+    
+    // Copy each non-empty span
+    for (const auto& span : spans) {
+        if (span.empty()) continue;
         
-        // Copy tail → end of buffer (oldest data)
-        std::memcpy(data_dest, 
-                   buf.data_unsafe() + buf.tail_index(), 
-                   first_chunk * elem_size);
-        
-        // Copy start → head (newest data)
-        std::size_t second_chunk = length - first_chunk;
-        std::memcpy(data_dest + first_chunk * elem_size,
-                   buf.data_unsafe(),
-                   second_chunk * elem_size);
-    } else {
-        // Single contiguous region: tail → head
-        std::memcpy(data_dest,
-                   buf.data_unsafe() + buf.tail_index(),
-                   length * elem_size);
+        std::size_t span_bytes = span.size() * elem_size;
+        std::memcpy(data_dest + offset,
+                   reinterpret_cast<const std::byte*>(span.data()),
+                   span_bytes);
+        offset += span_bytes;
     }
     
     return sizeof(uint32_t) + length * elem_size;
@@ -143,24 +149,10 @@ inline std::size_t serialize_to_unified(const T& value, std::byte* dest) {
                         [&](const auto& field) {
                             using FieldType = std::decay_t<decltype(field)>;
                             
-                            // Check if this is a RingBuffer (special handling)
-                            if constexpr (detail::is_ring_buffer_v<FieldType>) {
-                                std::size_t bytes_written = detail::serialize_ring_buffer(field, dest + current_offset);
+                            // Generic serialization for all SerializableContainer types
+                            if constexpr (SerializableContainer<FieldType>) {
+                                std::size_t bytes_written = detail::serialize_container(field, dest + current_offset);
                                 current_offset += bytes_written;
-                            }
-                            // Regular fixed-capacity containers
-                            else if constexpr (detail::is_fixed_container_impl<FieldType>::value) {
-                                // Write length prefix (uint32_t)
-                                uint32_t length = static_cast<uint32_t>(field.size());
-                                std::memcpy(dest + current_offset, &length, sizeof(uint32_t));
-                                current_offset += sizeof(uint32_t);
-                                
-                                // Write data
-                                std::size_t data_size = field.size() * sizeof(typename FieldType::value_type);
-                                if (data_size > 0) {
-                                    std::memcpy(dest + current_offset, field.data(), data_size);
-                                    current_offset += data_size;
-                                }
                             }
                             return 0; // dummy return
                         });

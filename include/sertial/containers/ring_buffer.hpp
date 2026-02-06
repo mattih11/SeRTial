@@ -428,6 +428,13 @@ public:
         return data_.data();
     }
     
+    /// @brief Const data access (required by SerializableContainer concept)
+    /// @note Alias for data_unsafe() - provides raw storage pointer
+    /// @warning Does NOT return logical order! Use only with custom serialization
+    constexpr const_pointer data() const noexcept {
+        return data_unsafe();
+    }
+    
     /// @brief Unsafe direct size setter (for deserialization)
     /// @warning Caller must ensure data is properly initialized!
     /// @note Resets head/tail to maintain invariants

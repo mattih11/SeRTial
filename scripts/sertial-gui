@@ -364,10 +364,24 @@ Base size:      {msg.base_packed_size} bytes (before dynamic fields)
             size_display = f"{field.size}"
             if field.is_variable_length:
                 size_display = f"<={field.size} ({field.max_elements}×{field.element_size})"
-            self.fields_tree.insert('', 'end', values=(
+            
+            # Insert main field row
+            field_id = self.fields_tree.insert('', 'end', values=(
                 name_display, field.type, field.offset, size_display, field.packed_offset, padding_str
             ), tags=(f'color{i}',))
             self.fields_tree.tag_configure(f'color{i}', background=color)
+            
+            # Add container metadata as child row if available
+            if field.container_type:
+                container_info = f"  [{field.container_type}]"
+                if field.overflow_behavior:
+                    container_info += f" overflow={field.overflow_behavior}"
+                if field.serialization_order:
+                    container_info += f" order={field.serialization_order}"
+                self.fields_tree.insert(field_id, 'end', values=(
+                    container_info, "", "", "", "", ""
+                ), tags=('container_info',))
+                self.fields_tree.tag_configure('container_info', foreground='#95a5a6')
 
         # Update copy operations - use blocks if available (HybridMemoryMap)
         self._update_copy_operations(msg)
@@ -414,7 +428,11 @@ Base size:      {msg.base_packed_size} bytes (before dynamic fields)
                 
                 static_info += f"{i+1}. Dynamic: {field_name}\n"
                 static_info += f"   write len (4B)\n"
-                static_info += f"   copy N×{elem_size}B from src+{block.src_offset}\n\n"
+                if block.span_based_serialization and block.max_span_count > 1:
+                    static_info += f"   copy up to {block.max_span_count} spans×N×{elem_size}B\n"
+                else:
+                    static_info += f"   copy N×{elem_size}B from src+{block.src_offset}\n"
+                static_info += "\n"
             
             elif block.type == "RuntimeOffset":
                 field_names = []

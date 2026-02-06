@@ -2,13 +2,11 @@
 
 #include "memory_map.hpp"
 #include "../../traits/container_detection.hpp"
+#include "../../containers/container_registration.hpp"
 #include <cstddef>
 #include <array>
 
 namespace sertial {
-
-// Forward declarations
-template<typename T, std::size_t N> class RingBuffer;
 
 // ============================================================================
 // Hybrid Memory Map - Single Source of Truth
@@ -439,6 +437,11 @@ struct HybridMemoryMap {
             // Length prefix + max capacity
             size += sizeof(uint32_t) + (block.capacity * block.element_size);
         }
+        // Add runtime offset blocks (fixed-size fields after dynamic content)
+        for (std::size_t i = 0; i < runtime_offset_block_count; ++i) {
+            const auto& block = Builder::layout.runtime_offset_blocks[i];
+            size += block.size;
+        }
         return size;
     }();
     
@@ -489,6 +492,22 @@ struct HybridMemoryMap {
                     info.src_offset = block.src_offset;
                     info.field_index = block.field_index;
                     info.is_variable = true;
+                    
+                    // Add span-based serialization info
+                    info.span_based_serialization = true;
+                    // Get span count from the field type
+                    if constexpr (detail::has_named_tuple_t_v<T>) {
+                        using NT = rfl::named_tuple_t<T>;
+                        const auto field_idx = block.field_index;
+                        info.max_span_count = [field_idx]<typename... Fields>(rfl::NamedTuple<Fields...>*) {
+                            std::size_t span_count = 0;
+                            std::size_t current_idx = 0;
+                            (void)((current_idx++ == field_idx ? 
+                                   (span_count = detail::get_field_span_count<detail::field_type_t<Fields>>(), true) : 
+                                   false) || ...);
+                            return span_count;
+                        }(static_cast<NT*>(nullptr));
+                    }
                     break;
                 }
                 case detail::BlockType::RuntimeOffset: {
@@ -688,39 +707,23 @@ struct HybridMemoryMap {
                             current_offset += sizeof(uint32_t);
                             
                             // Directly access and modify the container via its offset
-                            // We know the field type from compile-time analysis
+                            // Generic deserialization for all SerializableContainer types
                             auto nt = rfl::to_named_tuple(result);
                             detail::visit_field_by_index(nt, block.field_index,
                                 [&](const auto& field_ref) -> int {
                                     using FieldType = std::decay_t<decltype(field_ref)>;
                                     
-                                    // Check if this is a RingBuffer (special handling)
-                                    if constexpr (detail::is_ring_buffer_v<FieldType>) {
+                                    // Unified deserialization for all containers
+                                    if constexpr (SerializableContainer<FieldType>) {
                                         auto* container = reinterpret_cast<FieldType*>(dst + block.src_offset);
                                         std::size_t data_size = length * sizeof(typename FieldType::value_type);
                                         
                                         if (current_offset + data_size <= size && length <= container->capacity()) {
-                                            // Deserialize directly into RingBuffer storage
+                                            // All containers use data_unsafe() + set_size_unsafe()
                                             if (data_size > 0) {
                                                 std::memcpy(container->data_unsafe(), data + current_offset, data_size);
                                             }
-                                            container->set_size_unsafe(length);  // Sets head=length, tail=0
-                                            current_offset += data_size;
-                                        }
-                                    }
-                                    // Regular fixed-capacity containers
-                                    else if constexpr (detail::is_fixed_container_impl<FieldType>::value) {
-                                        // Direct pointer access to mutable container in the struct
-                                        auto* container = reinterpret_cast<FieldType*>(dst + block.src_offset);
-                                        
-                                        std::size_t data_size = length * sizeof(typename FieldType::value_type);
-                                        if (current_offset + data_size <= size && length <= container->capacity()) {
-                                            container->resize(length);
-                                            if (data_size > 0) {
-                                                // Safe const_cast - we know container points to mutable struct memory
-                                                auto* data_ptr = const_cast<typename FieldType::value_type*>(container->data());
-                                                std::memcpy(data_ptr, data + current_offset, data_size);
-                                            }
+                                            container->set_size_unsafe(length);
                                             current_offset += data_size;
                                         }
                                     }

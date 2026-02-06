@@ -163,6 +163,18 @@ class CLIRenderer:
             
             print(f"  {color_block}{var_marker}{field_name_colored}{spacing}{field.type:<30} "
                   f"{field.offset:>6} {field.size:>6} {field.packed_offset:>6}{padding_marker}")
+            
+            # Show container-specific metadata if available
+            if field.container_type:
+                container_info = f"    {self._color(Colors.DIM)}└─ [{field.container_type}]"
+                if field.overflow_behavior:
+                    container_info += f" overflow={field.overflow_behavior}"
+                if field.serialization_order:
+                    container_info += f" order={field.serialization_order}"
+                if field.max_elements > 0:
+                    container_info += f" capacity={field.max_elements}"
+                container_info += self._color(Colors.RESET)
+                print(container_info)
         
         # Memory visualization
         print(f"\n{self._color(Colors.BOLD)}Memory Layout:{self._color(Colors.RESET)}")
@@ -224,18 +236,21 @@ class CLIRenderer:
         if msg.blocks:
             print(f"\n{self._color(Colors.BOLD)}HybridMemoryMap Blocks:{self._color(Colors.RESET)}")
             for block in msg.blocks:
-                if block.type == "fixed":
-                    print(f"  {self._color(Colors.GREEN)}[FIXED]{self._color(Colors.RESET)} "
+                if block.type == "Fixed":
+                    print(f"  {self._color(Colors.BOLD)}[FIXED]{self._color(Colors.RESET)} "
                           f"src={block.src_offset} dst={block.dst_offset} size={block.size}")
-                elif block.type == "padding":
-                    print(f"  {self._color(Colors.YELLOW)}[PADDING]{self._color(Colors.RESET)} "
+                elif block.type == "Padding":
+                    print(f"  {self._color(Colors.DIM)}[PADDING]{self._color(Colors.RESET)} "
                           f"src={block.src_offset} size={block.size}")
-                elif block.type == "dynamic":
-                    print(f"  {self._color(Colors.CYAN)}[DYNAMIC]{self._color(Colors.RESET)} "
-                          f"{block.field_name} max={block.max_elements}")
-                elif block.type == "runtime_offset":
-                    print(f"  {self._color(Colors.MAGENTA)}[RUNTIME]{self._color(Colors.RESET)} "
-                          f"{block.field_name} size={block.size}")
+                elif block.type == "Dynamic":
+                    span_info = ""
+                    if block.span_based_serialization:
+                        span_info = f" max_spans={block.max_span_count}"
+                    print(f"  {self._color(Colors.BOLD)}[DYNAMIC]{self._color(Colors.RESET)} "
+                          f"field_idx={block.field_index}{span_info}")
+                elif block.type == "RuntimeOffset":
+                    print(f"  {self._color(Colors.BOLD)}[RUNTIME]{self._color(Colors.RESET)} "
+                          f"field_idx={block.field_index} size={block.size}")
     
     def print_summary(self, messages: List[MessageSchema]):
         """Print summary table of all messages."""

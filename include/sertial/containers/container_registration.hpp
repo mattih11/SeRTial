@@ -3,6 +3,8 @@
 #include <cstddef>
 #include <concepts>
 #include <type_traits>
+#include <span>
+#include <array>
 
 namespace sertial {
 
@@ -138,6 +140,111 @@ consteval bool verify_container() {
 template<typename T>
 consteval bool is_serializable_element() {
     return !requires { typename T::max_size; };  // Not a container
+}
+
+// ============================================================================
+// Serialization View System (Single Source of Truth)
+// ============================================================================
+
+/**
+ * @brief Compile-time serialization strategy for containers
+ * 
+ * Provides zero-allocation, type-safe memory views for serialization.
+ * Most containers return a single span, but containers with non-contiguous
+ * storage (e.g., RingBuffer wrap-around) can return multiple spans.
+ * 
+ * @tparam T Container type
+ * 
+ * @return Array of spans covering all serializable data
+ *         - span[0]: Primary data region (always used)
+ *         - span[1]: Secondary region (empty for contiguous containers)
+ * 
+ * Design rationale:
+ * - Fixed-size array (no allocation)
+ * - Compile-time dispatch via template specialization
+ * - Empty spans have size()==0, safe to ignore in loops
+ * - Eliminates special-case branching in serialization code
+ */
+template<SerializableContainer T>
+struct serialization_view_provider {
+    using element_type = typename T::value_type;
+    
+    /**
+     * @brief Get serialization memory views for a container
+     * 
+     * Default: Single contiguous span from data() to data()+size()
+     * 
+     * @param container Container instance to serialize
+     * @return Array of spans (span[1] empty for contiguous containers)
+     */
+    static constexpr auto get_spans(const T& container) {
+        using SpanType = std::span<const element_type>;
+        return std::array<SpanType, 2>{
+            SpanType{container.data(), container.size()},
+            SpanType{}  // Empty span
+        };
+    }
+    
+    /**
+     * @brief Get number of non-empty spans (for compile-time optimization)
+     * 
+     * @return Number of spans to iterate (1 for contiguous, 2 for wrapped)
+     */
+    static constexpr std::size_t span_count = 1;
+};
+
+/**
+ * @brief Specialization for RingBuffer (wrap-around handling)
+ * 
+ * When wrapped:
+ *   span[0]: [tail_index, capacity) - data at end of buffer
+ *   span[1]: [0, head_index) - data at start of buffer
+ * 
+ * When not wrapped:
+ *   span[0]: [tail_index, head_index) - contiguous data
+ *   span[1]: empty
+ */
+template<typename T, std::size_t N>
+struct serialization_view_provider<RingBuffer<T, N>> {
+    using element_type = T;
+    using SpanType = std::span<const element_type>;
+    
+    static constexpr auto get_spans(const RingBuffer<T, N>& rb) {
+        if (rb.is_wrapped()) {
+            // Two spans: tail→end, start→head
+            std::size_t tail = rb.tail_index();
+            std::size_t head = rb.head_index();
+            std::size_t capacity = N;
+            
+            return std::array<SpanType, 2>{
+                SpanType{rb.data_unsafe() + tail, capacity - tail},  // Tail to end
+                SpanType{rb.data_unsafe(), head}                      // Start to head
+            };
+        } else {
+            // Single span: tail→head
+            std::size_t tail = rb.tail_index();
+            std::size_t count = rb.size();
+            
+            return std::array<SpanType, 2>{
+                SpanType{rb.data_unsafe() + tail, count},
+                SpanType{}  // Empty
+            };
+        }
+    }
+    
+    static constexpr std::size_t span_count = 2;  // May use both spans
+};
+
+/**
+ * @brief Convenience function to get serialization spans
+ * 
+ * @tparam T Container type (must satisfy SerializableContainer)
+ * @param container Container instance
+ * @return Array of spans covering serializable data
+ */
+template<SerializableContainer T>
+constexpr auto get_serialization_spans(const T& container) {
+    return serialization_view_provider<T>::get_spans(container);
 }
 
 // ============================================================================

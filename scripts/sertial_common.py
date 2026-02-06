@@ -27,6 +27,10 @@ class FieldInfo:
     element_size: int = 0
     max_elements: int = 0
     header_size: int = 0
+    # Container-specific metadata (RingBuffer, fixed_vector, etc.)
+    container_type: str = ""
+    overflow_behavior: str = ""
+    serialization_order: str = ""
 
 
 @dataclass
@@ -40,6 +44,9 @@ class BlockInfo:
     field_start: int
     field_count: int
     is_variable: bool
+    # Span-based serialization info (for RingBuffer, etc.)
+    span_based_serialization: bool = False
+    max_span_count: int = 0
 
 
 @dataclass
@@ -116,7 +123,10 @@ class SchemaLoader:
                 is_variable_length=info.get('is_variable_length', False),
                 element_size=info.get('element_size', 0),
                 max_elements=info.get('max_elements', 0),
-                header_size=info.get('header_size', 0)
+                header_size=info.get('header_size', 0),
+                container_type=info.get('container_type', ''),
+                overflow_behavior=info.get('overflow_behavior', ''),
+                serialization_order=info.get('serialization_order', '')
             ))
         
         # Parse memcpy regions
@@ -141,7 +151,9 @@ class SchemaLoader:
                 field_index=b.get('field_index', -1),
                 field_start=b.get('field_start', -1),
                 field_count=b.get('field_count', 0),
-                is_variable=b.get('is_variable', False)
+                is_variable=b.get('is_variable', False),
+                span_based_serialization=b.get('span_based_serialization', False),
+                max_span_count=b.get('max_span_count', 0)
             )
             for b in data.get('blocks', [])
         ]

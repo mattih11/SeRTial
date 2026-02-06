@@ -2,6 +2,8 @@
 
 #include "padding.hpp"
 #include "../../containers/container_traits.hpp"
+#include "../../containers/container_registration.hpp"
+#include "../../traits/container_detection.hpp"
 #include <cstddef>
 #include <type_traits>
 #include <array>
@@ -30,6 +32,11 @@ struct FieldInfo {
     std::size_t element_size = 0;      ///< Size of each element (for containers)
     std::size_t max_elements = 0;      ///< Maximum elements (for fixed-capacity containers)
     std::size_t header_size = 0;       ///< Size of length prefix in serialized form
+    
+    // RingBuffer-specific metadata
+    std::string container_type = "";   ///< "fixed_vector", "fixed_string", "ring_buffer", etc.
+    std::string overflow_behavior = "";///< "error", "fifo_overwrite" (for RingBuffer)
+    std::string serialization_order = "";///< "index", "logical_oldest_to_newest" (for RingBuffer)
 };
 
 /// @brief Information about a contiguous memory region for memcpy
@@ -51,6 +58,9 @@ struct BlockInfo {
     std::size_t field_start = 0;    ///< First field in block
     std::size_t field_count = 0;    ///< Number of fields in block
     bool is_variable = false;       ///< True for Dynamic blocks
+    // Span-based serialization info (for Dynamic blocks)
+    bool span_based_serialization = false;  ///< Uses get_serialization_spans() approach
+    std::size_t max_span_count = 0;         ///< Max spans needed (1=contiguous, 2=wrapped RingBuffer)
 };
 
 /// @brief Complete schema for a type - JSON serializable via rfl::json
@@ -141,20 +151,6 @@ struct variable_length_element_size<RingBuffer<T, N>> {
 template<typename T>
 inline constexpr std::size_t variable_length_element_size_v = variable_length_element_size<T>::value;
 
-// ============================================================================
-// RingBuffer Detection Trait (used by serialization logic)
-// ============================================================================
-
-/// @brief Check if a type is RingBuffer (for special wrap-around serialization)
-template<typename T>
-struct is_ring_buffer : std::false_type {};
-
-template<typename T, std::size_t N>
-struct is_ring_buffer<RingBuffer<T, N>> : std::true_type {};
-
-template<typename T>
-inline constexpr bool is_ring_buffer_v = is_ring_buffer<T>::value;
-
 /// @brief Get max elements for a fixed-capacity container (0 for unbounded)
 /// @deprecated Use container_max_size_v<T> for SerializableContainer types
 template<typename T>
@@ -227,6 +223,59 @@ auto build_field_names_from_nt(rfl::NamedTuple<Fields...>*) {
 template<typename... Fields>
 auto build_field_type_names_from_nt(rfl::NamedTuple<Fields...>*) {
     return std::vector<std::string>{ std::string(rfl::type_name_t<field_type_t<Fields>>().str())... };
+}
+
+/// @brief Build vector of container type names from NamedTuple type (runtime)
+template<typename... Fields>
+auto build_container_type_names_from_nt(rfl::NamedTuple<Fields...>*) {
+    return std::vector<std::string>{ std::string(container_type_name_v<field_type_t<Fields>>)... };
+}
+
+/// @brief Build vector of overflow behaviors from NamedTuple type (runtime)
+template<typename... Fields>
+auto build_overflow_behaviors_from_nt(rfl::NamedTuple<Fields...>*) {
+    auto get_overflow = []<typename F>() -> std::string {
+        using FT = field_type_t<F>;
+        if constexpr (SerializableContainer<FT>) {
+            // Check span_count from serialization_view_provider
+            if constexpr (serialization_view_provider<FT>::span_count > 1) {
+                return "fifo_overwrite";  // Multiple spans = circular buffer
+            } else {
+                return "error";  // Single span = standard container
+            }
+        } else {
+            return "";
+        }
+    };
+    return std::vector<std::string>{ get_overflow.template operator()<Fields>()... };
+}
+
+/// @brief Build vector of serialization orders from NamedTuple type (runtime)
+template<typename... Fields>
+auto build_serialization_orders_from_nt(rfl::NamedTuple<Fields...>*) {
+    auto get_order = []<typename F>() -> std::string {
+        using FT = field_type_t<F>;
+        if constexpr (SerializableContainer<FT>) {
+            // Check span_count from serialization_view_provider
+            if constexpr (serialization_view_provider<FT>::span_count > 1) {
+                return "logical_oldest_to_newest";  // Multiple spans = linearized order
+            } else {
+                return "index";  // Single span = index order
+            }
+        } else {
+            return "";
+        }
+    };
+    return std::vector<std::string>{ get_order.template operator()<Fields>()... };
+}
+
+/// @brief Get span count for a field type (for block info)
+template<typename FieldType>
+constexpr std::size_t get_field_span_count() {
+    if constexpr (SerializableContainer<FieldType>) {
+        return serialization_view_provider<FieldType>::span_count;
+    }
+    return 0;
 }
 
 /// @brief Build array of is_variable_length flags from NamedTuple type
@@ -531,6 +580,18 @@ struct MemoryMap {
         std::vector<FieldInfo> infos;
         infos.reserve(field_count);
         
+        // Get container metadata vectors
+        std::vector<std::string> container_types;
+        std::vector<std::string> overflow_behaviors;
+        std::vector<std::string> serialization_orders;
+        
+        if constexpr (detail::has_named_tuple_t_v<T>) {
+            using NT = rfl::named_tuple_t<T>;
+            container_types = detail::build_container_type_names_from_nt(static_cast<NT*>(nullptr));
+            overflow_behaviors = detail::build_overflow_behaviors_from_nt(static_cast<NT*>(nullptr));
+            serialization_orders = detail::build_serialization_orders_from_nt(static_cast<NT*>(nullptr));
+        }
+        
         for (std::size_t i = 0; i < field_count; ++i) {
             FieldInfo info;
             info.index = i;
@@ -543,6 +604,14 @@ struct MemoryMap {
             info.max_elements = field_max_elements[i];
             // header_size: varint length prefix (estimate 1-2 bytes for typical sizes)
             info.header_size = field_is_variable[i] ? 4 : 0;  // Using uint32_t for length
+            
+            // Container-specific metadata
+            if (i < container_types.size()) {
+                info.container_type = container_types[i];
+                info.overflow_behavior = overflow_behaviors[i];
+                info.serialization_order = serialization_orders[i];
+            }
+            
             infos.push_back(info);
         }
         return infos;

@@ -12,6 +12,7 @@
 
 // Include your message definitions
 #include "defines/defines.hpp"
+#include "defines/sensor_history.hpp"  // RingBuffer example
 #include "messages/messages.hpp"
 
 using namespace sertial;
@@ -53,6 +54,7 @@ using MyMessages = MessageCollection<
     CameraInfo<>,
     Imu<>,
     ImuDouble,
+    SensorHistory,  // RingBuffer example
     ComplexData
 >;
 
