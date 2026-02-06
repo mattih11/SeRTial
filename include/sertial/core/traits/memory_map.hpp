@@ -82,21 +82,17 @@ struct TypeSchema {
 };
 
 // ============================================================================
-// Variable-Length Field Detection
+// Variable-Length Field Detection (Concept-Based)
 // ============================================================================
 
 namespace detail {
 
-/// @brief Detect if a type is a variable-length container (fixed_vector, fixed_string, std::vector, std::string)
+/// @brief Detect if a type is a variable-length container
+/// @deprecated Use SerializableContainer concept instead for fixed-capacity containers
 template<typename T>
-struct is_variable_length_field : std::false_type {};
+struct is_variable_length_field : std::bool_constant<SerializableContainer<T>> {};
 
-template<typename T, std::size_t N>
-struct is_variable_length_field<fixed_vector<T, N>> : std::true_type {};
-
-template<std::size_t N>
-struct is_variable_length_field<fixed_string<N>> : std::true_type {};
-
+// Keep std::vector and std::string for backward compatibility (non-concept types)
 template<typename T, typename A>
 struct is_variable_length_field<std::vector<T, A>> : std::true_type {};
 
@@ -107,21 +103,18 @@ template<typename T>
 inline constexpr bool is_variable_length_field_v = is_variable_length_field<T>::value;
 
 /// @brief Get element size for a container type (0 for non-containers)
+/// @deprecated Use container_element_size_v<T> for SerializableContainer types
 template<typename T>
 struct variable_length_element_size {
     static constexpr std::size_t value = 0;
 };
 
-template<typename T, std::size_t N>
-struct variable_length_element_size<fixed_vector<T, N>> {
-    static constexpr std::size_t value = sizeof(T);
+template<SerializableContainer T>
+struct variable_length_element_size<T> {
+    static constexpr std::size_t value = container_element_size_v<T>;
 };
 
-template<std::size_t N>
-struct variable_length_element_size<fixed_string<N>> {
-    static constexpr std::size_t value = sizeof(char);
-};
-
+// Keep std::vector and std::string specializations
 template<typename T, typename A>
 struct variable_length_element_size<std::vector<T, A>> {
     static constexpr std::size_t value = sizeof(T);
@@ -136,19 +129,15 @@ template<typename T>
 inline constexpr std::size_t variable_length_element_size_v = variable_length_element_size<T>::value;
 
 /// @brief Get max elements for a fixed-capacity container (0 for unbounded)
+/// @deprecated Use container_max_size_v<T> for SerializableContainer types
 template<typename T>
 struct variable_length_max_elements {
     static constexpr std::size_t value = 0;
 };
 
-template<typename T, std::size_t N>
-struct variable_length_max_elements<fixed_vector<T, N>> {
-    static constexpr std::size_t value = N;
-};
-
-template<std::size_t N>
-struct variable_length_max_elements<fixed_string<N>> {
-    static constexpr std::size_t value = N;
+template<SerializableContainer T>
+struct variable_length_max_elements<T> {
+    static constexpr std::size_t value = container_max_size_v<T>;
 };
 
 template<typename T>

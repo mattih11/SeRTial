@@ -1,67 +1,51 @@
 #pragma once
 
-#include "../containers/fixed_vector.hpp"
-#include "../containers/fixed_string.hpp"
+#include "../containers/container_registration.hpp"
 #include "../core/traits/padding.hpp"
 #include <type_traits>
 
 namespace sertial::detail {
 
 // ============================================================================
-// Fixed Container Detection (for compile-time checks)
+// Fixed Container Detection (Concept-Based)
 // ============================================================================
+// This file now provides backward-compatible aliases to the new concept-based
+// registration system in container_registration.hpp
 
 /// @brief Check if type is a fixed container with runtime size
-/// 
-/// fixed_vector and fixed_string are trivially copyable but have runtime size().
-/// Using optimized memcpy on them would waste space by copying full capacity
-/// instead of just the used portion.
+/// @deprecated Use SerializableContainer concept instead
 template<typename T>
-struct is_fixed_container_impl : std::false_type {};
-
-template<typename T, std::size_t N>
-struct is_fixed_container_impl<fixed_vector<T, N>> : std::true_type {};
-
-template<std::size_t N>
-struct is_fixed_container_impl<fixed_string<N>> : std::true_type {};
+struct is_fixed_container_impl : std::bool_constant<SerializableContainer<T>> {};
 
 /// @brief Boolean constant for fixed container detection
 template<typename T>
-inline constexpr bool is_fixed_container_v = is_fixed_container_impl<T>::value;
+inline constexpr bool is_fixed_container_v = SerializableContainer<T>;
 
 /// @brief Get capacity of fixed container at compile-time
+/// @deprecated Use container_max_size_v<T> instead
 template<typename T>
 struct fixed_container_capacity {
     static constexpr std::size_t value = 0;
 };
 
-template<typename T, std::size_t N>
-struct fixed_container_capacity<fixed_vector<T, N>> {
-    static constexpr std::size_t value = N;
-};
-
-template<std::size_t N>
-struct fixed_container_capacity<fixed_string<N>> {
-    static constexpr std::size_t value = N;
+template<SerializableContainer T>
+struct fixed_container_capacity<T> {
+    static constexpr std::size_t value = container_max_size_v<T>;
 };
 
 template<typename T>
 inline constexpr std::size_t fixed_container_capacity_v = fixed_container_capacity<T>::value;
 
 /// @brief Get element size of fixed container at compile-time
+/// @deprecated Use container_element_size_v<T> instead
 template<typename T>
 struct fixed_container_element_size {
     static constexpr std::size_t value = 0;
 };
 
-template<typename T, std::size_t N>
-struct fixed_container_element_size<fixed_vector<T, N>> {
-    static constexpr std::size_t value = sizeof(T);
-};
-
-template<std::size_t N>
-struct fixed_container_element_size<fixed_string<N>> {
-    static constexpr std::size_t value = sizeof(char);
+template<SerializableContainer T>
+struct fixed_container_element_size<T> {
+    static constexpr std::size_t value = container_element_size_v<T>;
 };
 
 template<typename T>
