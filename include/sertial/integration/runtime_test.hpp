@@ -18,7 +18,7 @@
 #include <functional>
 
 #include "message_collection.hpp"
-#include "../core/traits/memory_map.hpp"
+#include "../core/layout/struct_layout.hpp"
 #include "../io/unified_binary.hpp"
 
 namespace sertial {
@@ -81,8 +81,7 @@ private:
     /// Roundtrip test for a single type
     template<typename T>
     static bool test_roundtrip_single(bool verbose) {
-        using MM = MemoryMap<T>;
-        using HMM = HybridMemoryMap<T>;
+        using Layout = StructLayout<T>;
         std::string name = rfl::type_name_t<T>().str();
         
         // Truncate long template names
@@ -94,23 +93,16 @@ private:
         
         if (verbose) {
             std::cout << "\n  [ROUNDTRIP] " << name << "\n";
-            std::cout << "    sizeof=" << MM::unpacked_size 
-                      << " packed=" << MM::packed_size
-                      << " regions=" << MM::memcpy_region_count << "\n";
+            std::cout << "    sizeof=" << sizeof(T)
+                      << " base_packed=" << Layout::base_packed_size
+                      << " max_packed=" << Layout::max_packed_size << "\n";
         }
         
         // Serialize (returns static_buffer)
         auto serialized = serialize(original);
         
-        // Use HybridMemoryMap to calculate expected size (unified serialization uses HMM)
-        // NOTE: HMM may produce slightly larger output than MemoryMap for nested structs
-        //       due to preserved alignment padding. This is a known limitation.
-        std::size_t expected_size;
-        if constexpr (HMM::has_variable_fields) {
-            expected_size = HMM::calculate_packed_size(original);
-        } else {
-            expected_size = HMM::base_packed_size;
-        }
+        // Calculate expected size
+        std::size_t expected_size = packed_size_of(original);
         
         if (serialized.size() != expected_size) {
             if (verbose) {

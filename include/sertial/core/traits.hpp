@@ -9,13 +9,13 @@
 // - size_category.hpp: SizeCategory enum (Static/Dynamic/Trailing)
 // - padding.hpp: Padding detection using rfl::named_tuple_t
 // - type_info.hpp: TypeTraits<T> comprehensive analysis
-// - memory_map.hpp: Field layout and memcpy optimization
 // - bounded.hpp: Compile-time max size computation for zero-allocation
+//
+// Note: memory_map.hpp deprecated - use StructLayout instead
 
 #include "traits/size_category.hpp"
 #include "traits/padding.hpp"
 #include "traits/type_info.hpp"
-#include "traits/memory_map.hpp"
 #include "traits/bounded.hpp"
 
 namespace sertial {

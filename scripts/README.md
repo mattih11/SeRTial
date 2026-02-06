@@ -78,7 +78,7 @@ sertial-gui
 ### CLI Features
 - Colored memory layout bars
 - Field-by-field breakdown with padding info
-- HybridMemoryMap block visualization
+- Block-based serialization visualization
 - Summary statistics table
 - Copy block analysis
 

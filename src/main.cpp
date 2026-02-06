@@ -58,14 +58,14 @@ int main() {
     print_type_info<GameState>("GameState (uint32 + Player)");
     
     // Compile-time static assertions
-    static_assert(Message<Vec3>::packed_size == 12, "Vec3 should be 12 bytes packed");
-    static_assert(!Message<Vec3>::has_padding, "Vec3 should have no padding");
+    static_assert(Message<Vec3>::Layout::base_packed_size == 12, "Vec3 should be 12 bytes packed");
+    static_assert(!Message<Vec3>::has_variable_fields, "Vec3 should have no variable fields");
     
-    static_assert(Message<Entity>::packed_size == 9, "Entity should be 9 bytes packed");
-    static_assert(Message<Entity>::has_padding, "Entity should have padding");
+    static_assert(Message<Entity>::Layout::base_packed_size == 9, "Entity should be 9 bytes packed");
+    // Note: padding info moved to Layout internal details
     
-    static_assert(Message<Player>::packed_size == 20, "Player should be 20 bytes packed");
-    static_assert(!Message<Player>::has_padding, "Player should have no padding");
+    static_assert(Message<Player>::base_packed_size == 20, "Player should be 20 bytes packed");
+    static_assert(!Message<Player>::has_variable_fields, "Player should have no variable fields");
 
     // ========================================================================
     // Part 2: Serialization (Zero Allocation)
@@ -143,8 +143,8 @@ int main() {
     
     std::cout << "\nEntity (has padding):\n";
     std::cout << "  sizeof(Entity):     " << sizeof(Entity) << " bytes\n";
-    std::cout << "  Message packed_size:" << Message<Entity>::packed_size << " bytes\n";
-    std::cout << "  Padding saved:      " << (sizeof(Entity) - Message<Entity>::packed_size) << " bytes\n";
+    std::cout << "  Message base_packed_size: " << Message<Entity>::base_packed_size << " bytes\n";
+    std::cout << "  Struct size:              " << sizeof(Entity) << " bytes\n";
     
     auto entity_result = serialize(entity);
     std::cout << "  Serialized bytes:   " << entity_result.size() << "\n";

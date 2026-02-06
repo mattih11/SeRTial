@@ -150,16 +150,15 @@ void example_memory_analysis() {
     
     std::cout << "\n  Point3D<float>:\n";
     std::cout << "    sizeof:        " << sizeof(Point3D<float>) << " bytes\n";
-    std::cout << "    packed_size:   " << Message<Point3D<float>>::packed_size << " bytes\n";
-    std::cout << "    has_padding:   " << (Message<Point3D<float>>::has_padding ? "yes" : "no") << "\n";
-    std::cout << "    can_memcpy:    " << (Message<Point3D<float>>::can_single_memcpy ? "yes" : "no") << "\n";
+    std::cout << "    base_packed_size: " << Message<Point3D<float>>::base_packed_size << " bytes\n";
+    std::cout << "    max_packed_size:  " << Message<Point3D<float>>::max_packed_size << " bytes\n";
+    std::cout << "    has_variable_fields: " << (Message<Point3D<float>>::has_variable_fields ? "yes" : "no") << "\n";
     
     std::cout << "\n  Header<>:\n";
     std::cout << "    sizeof:        " << sizeof(Header<>) << " bytes\n";
-    std::cout << "    packed_size:   " << Message<Header<>>::packed_size << " bytes\n";
+    std::cout << "    base_packed_size: " << Message<Header<>>::base_packed_size << " bytes\n";
     std::cout << "    max_buffer:    " << Message<Header<>>::max_buffer_size << " bytes\n";
     std::cout << "    field_count:   " << Message<Header<>>::field_count << "\n";
-    std::cout << "    memcpy_count:  " << Message<Header<>>::memcpy_count << "\n";
     
     std::cout << "\n  Position<>:\n";
     std::cout << "    sizeof:        " << sizeof(Position<>) << " bytes\n";

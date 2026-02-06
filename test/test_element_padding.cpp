@@ -189,15 +189,15 @@ bool complex_padding_serialization_test() {
 bool size_calculation_with_padding_test() {
     TEST_SECTION("Test 4: Compile-time size calculation with padding");
     
-    using HMM = HybridMemoryMap<MessageWithPaddedElements>;
+    using Layout = StructLayout<MessageWithPaddedElements>;
     
     // Base size: just the header (uint32_t = 4 bytes)
-    constexpr size_t base = HMM::base_packed_size;
+    constexpr size_t base = Layout::base_packed_size;
     TEST_PRINT("  base_packed_size: " << base << " bytes");
     TEST_ASSERT_EQ(base, 4u, "Base is header only");
     
     // Max size: header + length + 10 * PaddedStruct
-    constexpr size_t max_size = HMM::max_packed_size;
+    constexpr size_t max_size = Layout::max_packed_size;
     constexpr size_t expected_max = 4 + 4 + 10 * sizeof(PaddedStruct);
     static_assert(expected_max == 4 + 4 + 10 * 8);
     static_assert(expected_max == 88);
@@ -208,7 +208,7 @@ bool size_calculation_with_padding_test() {
     
     // Runtime calculation with 3 elements
     MessageWithPaddedElements msg{.header = 1, .items = {{1,1},{2,2},{3,3}}};
-    size_t actual = HybridMemoryMap<MessageWithPaddedElements>::calculate_packed_size(msg);
+    size_t actual = packed_size_of(msg);
     size_t expected_actual = 4 + 4 + 3 * sizeof(PaddedStruct);
     
     TEST_PRINT("  actual size (3 elements): " << actual << " bytes");

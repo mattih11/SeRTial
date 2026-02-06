@@ -9,47 +9,8 @@ namespace sertial::detail {
 // ============================================================================
 // Fixed Container Detection (Concept-Based)
 // ============================================================================
-// This file now provides backward-compatible aliases to the new concept-based
-// registration system in container_registration.hpp
-
-/// @brief Check if type is a fixed container with runtime size
-/// @deprecated Use SerializableContainer concept instead
-template<typename T>
-struct is_fixed_container_impl : std::bool_constant<SerializableContainer<T>> {};
-
-/// @brief Boolean constant for fixed container detection
-template<typename T>
-inline constexpr bool is_fixed_container_v = SerializableContainer<T>;
-
-/// @brief Get capacity of fixed container at compile-time
-/// @deprecated Use container_max_size_v<T> instead
-template<typename T>
-struct fixed_container_capacity {
-    static constexpr std::size_t value = 0;
-};
-
-template<SerializableContainer T>
-struct fixed_container_capacity<T> {
-    static constexpr std::size_t value = container_max_size_v<T>;
-};
-
-template<typename T>
-inline constexpr std::size_t fixed_container_capacity_v = fixed_container_capacity<T>::value;
-
-/// @brief Get element size of fixed container at compile-time
-/// @deprecated Use container_element_size_v<T> instead
-template<typename T>
-struct fixed_container_element_size {
-    static constexpr std::size_t value = 0;
-};
-
-template<SerializableContainer T>
-struct fixed_container_element_size<T> {
-    static constexpr std::size_t value = container_element_size_v<T>;
-};
-
-template<typename T>
-inline constexpr std::size_t fixed_container_element_size_v = fixed_container_element_size<T>::value;
+// Container detection now uses SerializableContainer concept from container_registration.hpp
+// For traits, use: container_max_size_v<T>, container_element_size_v<T>
 
 // ============================================================================
 // Container Type Detection
@@ -82,7 +43,8 @@ inline constexpr const char* container_type_name_v = container_type_name<T>::val
 /// @brief Check if any field in a NamedTuple is a fixed container
 template<typename... Fields>
 constexpr bool has_fixed_containers(rfl::NamedTuple<Fields...>*) {
-    return (is_fixed_container_v<field_type_t<Fields>> || ...);
+    using namespace detail;
+    return (SerializableContainer<field_type_t<Fields>> || ...);
 }
 
 /// @brief Check if a struct contains any fields that are fixed containers

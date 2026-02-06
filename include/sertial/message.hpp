@@ -2,7 +2,8 @@
 
 #include "core/traits.hpp"
 #include "core/endian.hpp"
-#include "io/unified_binary.hpp"
+#include "core/layout/struct_layout.hpp"  // Single source of truth
+#include "containers/static_buffer.hpp"   // For to_buffer() compatibility
 #include <array>
 #include <cstddef>
 #include <span>
@@ -101,40 +102,24 @@ struct Message {
     /// @brief The serialized type
     using value_type = T;
     
-    /// @brief TypeTraits for the serialized type
-    using traits = TypeTraits<T>;
-    
-    /// @brief MemoryMap for the serialized type
-    using memory_map = MemoryMap<T>;
+    /// @brief StructLayout for the serialized type (single source of truth)
+    using Layout = StructLayout<T>;
     
     // ========================================================================
     // Size Information (Compile-Time)
     // ========================================================================
     
-    /// @brief Packed binary size (sum of field sizes, no padding)
-    static constexpr std::size_t packed_size = traits::packed_size;
+    /// @brief Base packed size (fixed fields only)
+    static constexpr std::size_t base_packed_size = Layout::base_packed_size;
     
-    /// @brief Actual struct size in memory (with padding)
-    static constexpr std::size_t unpacked_size = traits::unpacked_size;
+    /// @brief Maximum packed size (with all containers at max capacity)
+    static constexpr std::size_t max_packed_size = Layout::max_packed_size;
     
-    /// @brief Padding bytes in the struct
-    static constexpr std::size_t padding_bytes = unpacked_size - packed_size;
-    
-    /// @brief Does the struct have internal padding?
-    static constexpr bool has_padding = traits::has_padding;
-    
-    // ========================================================================
-    // Memory Layout Information (Compile-Time)
-    // ========================================================================
+    /// @brief Does the type have variable-size fields?
+    static constexpr bool has_variable_fields = Layout::has_variable_fields;
     
     /// @brief Number of fields in the struct
-    static constexpr std::size_t field_count = memory_map::field_count;
-    
-    /// @brief Number of memcpy operations needed for optimal serialization
-    static constexpr std::size_t memcpy_count = memory_map::memcpy_region_count;
-    
-    /// @brief Can we serialize the entire struct with one memcpy?
-    static constexpr bool can_single_memcpy = memory_map::can_single_memcpy;
+    static constexpr std::size_t field_count = Layout::num_fields;
     
     // ========================================================================
     // Buffer Configuration (GUARANTEED Compile-Time)
@@ -144,14 +129,10 @@ struct Message {
     static constexpr bool is_bounded = true;  // Guaranteed by concept
     
     /// @brief Maximum buffer size needed for serialization
-    /// This is computed at compile-time from the struct definition.
-    /// The buffer is guaranteed to fit any valid serialization.
-    /// For types with variable-size fields, this is the maximum capacity.
-    /// For fixed-size types, this is the exact packed size.
-    static constexpr std::size_t max_buffer_size = HybridMemoryMap<T>::max_packed_size;
+    static constexpr std::size_t max_buffer_size = max_packed_size;
     
-    /// @brief Stack-allocated buffer type (zero heap allocation)
-    using buffer_type = std::array<std::byte, max_buffer_size>;
+    /// @brief Stack-allocated buffer type (clean alias)
+    using buffer_type = typename Layout::buffer_type;
     
     // ========================================================================
     // Serialization Result
@@ -198,16 +179,19 @@ struct Message {
     /// @param buffer The buffer to write to
     /// @return Number of bytes written
     static std::size_t serialize_to(const T& value, buffer_type& buffer) {
-        // Use unified block-based serialization (handles both fixed and variable-size fields)
-        return serialize_to_unified(value, buffer.data());
+        // Direct call to StructLayout (single delegation layer)
+        return Layout::serialize(value, std::span{buffer});
     }
     
-    /// @brief Serialize to a static_buffer (zero allocation)
+    /// @brief Serialize to a static_buffer (compatibility)
     /// 
     /// @param value The value to serialize
     /// @return static_buffer containing the serialized bytes
     [[nodiscard]] static auto to_buffer(const T& value) {
-        return serialize_unified(value);
+        static_buffer<max_buffer_size> result;
+        std::size_t size = Layout::serialize(value, std::span{result.data(), max_buffer_size});
+        result.resize(size);
+        return result;
     }
     
     // ========================================================================
@@ -219,13 +203,12 @@ struct Message {
     /// @param data The serialized data
     /// @return Result containing the deserialized value or an error
     [[nodiscard]] static DeserializeResult<T> deserialize(std::span<const std::byte> data) {
-        try {
-            return deserialize_unified<T>(data.data(), data.size());
-        } catch (const std::exception& e) {
-            return MessageError(std::string("Deserialization failed: ") + e.what());
-        } catch (...) {
-            return MessageError("Deserialization failed");
+        // Direct call to StructLayout (single delegation layer)
+        auto opt = Layout::deserialize_opt(data);
+        if (opt) {
+            return DeserializeResult<T>{std::move(*opt)};
         }
+        return MessageError("Deserialization failed");
     }
     
     /// @brief Deserialize from a byte span with endianness conversion
@@ -250,7 +233,7 @@ struct Message {
         // Only convert if endianness differs
         if (source_endian != std::endian::native) {
             // Check if this type has variable-size fields
-            if constexpr (HybridMemoryMap<T>::has_variable_fields) {
+            if constexpr (StructLayout<T>::has_variable_fields) {
                 return MessageError("Endianness conversion for variable-size fields not yet implemented");
             }
             
@@ -265,13 +248,11 @@ struct Message {
             swap_endianness<T>(std::span<std::byte>{temp.data(), data.size()});
             
             // Deserialize from converted data
-            try {
-                return deserialize_unified<T>(temp.data(), data.size());
-            } catch (const std::exception& e) {
-                return MessageError(std::string("Deserialization failed after endian conversion: ") + e.what());
-            } catch (...) {
-                return MessageError("Deserialization failed after endian conversion");
+            auto result = Layout::deserialize_opt(std::span<const std::byte>{temp.data(), data.size()});
+            if (result) {
+                return DeserializeResult<T>{std::move(*result)};
             }
+            return MessageError("Deserialization failed after endian conversion");
         }
         
         // No conversion needed
@@ -303,12 +284,8 @@ struct Message {
     [[nodiscard]] static bool deserialize_into(
         std::span<const std::byte> data, T& out) 
     {
-        try {
-            out = deserialize_unified<T>(data.data(), data.size());
-            return true;
-        } catch (...) {
-            return false;
-        }
+        // Direct call to StructLayout (single delegation layer)
+        return Layout::deserialize(out, data);
     }
     
     // ========================================================================
@@ -320,24 +297,19 @@ struct Message {
     /// @param value The value to measure
     /// @return Exact number of bytes needed
     [[nodiscard]] static std::size_t compute_size(const T& value) {
-        // Use HybridMemoryMap for runtime size calculation
         // For fixed-size types, this is compile-time constant
-        // For variable-size types, this evaluates the actual container sizes
-        return HybridMemoryMap<T>::calculate_packed_size(value);
+        // For variable-size types, this evaluates actual container sizes
+        return Layout::calculate_packed_size(value);
     }
     
     /// @brief Print memory layout information to stdout
     static void print_info() {
         std::cout << "Message<" << typeid(T).name() << ">:\n";
-        std::cout << "  packed_size:      " << packed_size << " bytes\n";
-        std::cout << "  unpacked_size:    " << unpacked_size << " bytes\n";
-        std::cout << "  padding_bytes:    " << padding_bytes << " bytes\n";
-        std::cout << "  has_padding:      " << (has_padding ? "yes" : "no") << "\n";
-        std::cout << "  field_count:      " << field_count << "\n";
-        std::cout << "  memcpy_count:     " << memcpy_count << "\n";
-        std::cout << "  can_single_memcpy:" << (can_single_memcpy ? "yes" : "no") << "\n";
-        std::cout << "  max_buffer_size:  " << max_buffer_size << " bytes (exact)\n";
-        std::cout << "  is_bounded:       yes (guaranteed)\n";
+        std::cout << "  base_packed_size:  " << base_packed_size << " bytes\n";
+        std::cout << "  max_packed_size:   " << max_packed_size << " bytes\n";
+        std::cout << "  has_variable_fields: " << (has_variable_fields ? "yes" : "no") << "\n";
+        std::cout << "  field_count:       " << field_count << "\n";
+        std::cout << "  is_bounded:        yes (guaranteed)\n";
     }
 };
 

@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <span>
 #include <bit>
-#include "traits/memory_map.hpp"
+#include "layout/struct_layout.hpp"
 #include "traits/padding.hpp"
 #include "../traits/container_detection.hpp"
 
@@ -114,7 +114,7 @@ void swap_field_at_offset(std::span<std::byte> data) noexcept {
 /// value into a non-type template parameter
 template<typename T, std::size_t Index>
 struct offset_constant {
-    static constexpr std::size_t value = MemoryMap<T>::packed_offsets[Index];
+    static constexpr std::size_t value = StructLayout<T>::field_offsets[Index];
 };
 
 /// @brief Swap a single field using compile-time offset
@@ -150,7 +150,7 @@ void swap_serialized_fields_impl(std::span<std::byte> data, std::index_sequence<
 
 /// @brief Swap endianness of all fields in serialized (packed) data
 /// 
-/// This operates on the serialized byte stream using compile-time MemoryMap
+/// This operates on the serialized byte stream using compile-time StructLayout
 /// information. All offsets and types are resolved at compile-time, resulting
 /// in a sequence of direct bswap operations with hardcoded offsets.
 /// 
@@ -181,7 +181,7 @@ void swap_endianness(std::span<std::byte> data) noexcept {
         "Structs with fixed_vector/fixed_string have variable-length serialized format. "
         "Endianness conversion must be done during deserialization, not on raw bytes.");
     
-    constexpr std::size_t field_count = MemoryMap<T>::field_count;
+    constexpr std::size_t field_count = StructLayout<T>::num_fields;
     detail::swap_serialized_fields_impl<T>(data, std::make_index_sequence<field_count>{});
 }
 

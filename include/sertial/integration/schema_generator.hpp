@@ -1,6 +1,6 @@
 #pragma once
 
-/// SchemaGenerator - One-liner schema generation from MessageCollection
+/// SchemaGenerator - Direct schema generation from StructLayout
 ///
 /// Usage:
 ///   using MyMessages = MessageCollection<Position<>, PointCloud<>>;
@@ -18,14 +18,13 @@
 #include <iomanip>
 
 #include "message_collection.hpp"
-#include "../core/traits/memory_map.hpp"
-#include "../core/traits/hybrid_memory_map.hpp"
+#include "schema_export.hpp"
 
 namespace sertial {
 
 /// Schema collection output format
 struct SchemaOutput {
-    std::string version = "4.0.0";
+    std::string version = "5.0.0";
     std::string generated;
     std::vector<TypeSchema> messages;
 };
@@ -38,7 +37,7 @@ struct SchemaGenerator {
     /// Generate SchemaOutput with all type schemas
     static SchemaOutput generate() {
         SchemaOutput output;
-        output.version = "4.0.0";
+        output.version = "5.0.0";
         output.generated = __DATE__ " " __TIME__;
         
         generate_impl<0>(output);
@@ -62,9 +61,9 @@ struct SchemaGenerator {
     
     /// Write with verbose console output
     static bool write_verbose(const std::string& filepath) {
-        std::cout << "SeRTial Schema Generator v4.0\n";
+        std::cout << "SeRTial Schema Generator v5.0\n";
         std::cout << "=============================\n";
-        std::cout << "Using HybridMemoryMap for unified serialization\n\n";
+        std::cout << "Using StructLayout for direct schema export\n\n";
         
         auto output = generate();
         std::cout << "Generated " << output.messages.size() << " schemas\n";
@@ -85,56 +84,40 @@ struct SchemaGenerator {
     /// Print summary table
     static void print_summary(const SchemaOutput& output) {
         std::cout << "Summary:\n";
-        std::cout << std::string(78, '-') << "\n";
-        std::cout << std::setw(24) << std::left << "Name"
-                  << std::setw(10) << "Category"
-                  << std::setw(7) << "sizeof"
-                  << std::setw(7) << "packed"
-                  << std::setw(5) << "pad"
+        std::cout << std::string(70, '-') << "\n";
+        std::cout << std::setw(30) << std::left << "Name"
+                  << std::setw(10) << "sizeof"
+                  << std::setw(10) << "base"
+                  << std::setw(10) << "max"
                   << std::setw(5) << "blks"
-                  << std::setw(5) << "dyn"
                   << "flags\n";
-        std::cout << std::string(78, '-') << "\n";
+        std::cout << std::string(70, '-') << "\n";
         
-        std::size_t total_padding = 0;
-        std::size_t total_blocks = 0;
-        std::size_t single_memcpy_count = 0;
         std::size_t variable_count = 0;
         
         for (const auto& m : output.messages) {
-            total_padding += m.padding_bytes;
-            total_blocks += m.fixed_block_count + m.dynamic_block_count + m.runtime_offset_block_count;
-            if (m.can_single_memcpy) single_memcpy_count++;
             if (m.has_variable_fields) variable_count++;
             
             std::string name = m.name;
-            if (name.length() > 23) name = name.substr(0, 20) + "...";
+            if (name.length() > 29) name = name.substr(0, 26) + "...";
             
-            std::cout << std::setw(24) << std::left << name
-                      << std::setw(10) << m.category
-                      << std::setw(7) << m.sizeof_bytes
-                      << std::setw(7) << (m.has_variable_fields ? m.base_packed_size : m.packed_size)
-                      << std::setw(5) << m.padding_bytes
-                      << std::setw(5) << (m.fixed_block_count + m.dynamic_block_count + m.runtime_offset_block_count)
-                      << std::setw(5) << m.dynamic_block_count;
+            std::size_t total_blocks = m.fixed_block_count + 
+                                      m.dynamic_block_count + 
+                                      m.runtime_offset_block_count;
             
-            if (m.has_padding) std::cout << "[PAD]";
-            if (m.can_single_memcpy) std::cout << "[1CPY]";
+            std::cout << std::setw(30) << std::left << name
+                      << std::setw(10) << m.sizeof_bytes
+                      << std::setw(10) << m.base_packed_size
+                      << std::setw(10) << m.max_packed_size
+                      << std::setw(5) << total_blocks;
+            
             if (m.has_variable_fields) std::cout << "[VAR]";
             std::cout << "\n";
         }
         
-        std::cout << std::string(78, '-') << "\n";
-        std::cout << "Total padding eliminated: " << total_padding << " bytes\n";
-        std::cout << "Single-memcpy optimizable: " << single_memcpy_count 
+        std::cout << std::string(70, '-') << "\n";
+        std::cout << "Variable-size types: " << variable_count
                   << "/" << output.messages.size() << " messages\n";
-        std::cout << "Variable-size structs: " << variable_count
-                  << "/" << output.messages.size() << " messages\n";
-        std::cout << "Average blocks per message: " 
-                  << std::fixed << std::setprecision(2)
-                  << (output.messages.size() > 0 ? 
-                      static_cast<double>(total_blocks) / output.messages.size() : 0)
-                  << "\n";
     }
 
 private:
@@ -143,7 +126,7 @@ private:
     static void generate_impl(SchemaOutput& output) {
         if constexpr (I < Collection::count) {
             using T = typename Collection::template type_at<I>;
-            output.messages.push_back(get_hybrid_schema<T>());
+            output.messages.push_back(export_schema<T>());
             generate_impl<I + 1>(output);
         }
     }

@@ -1,6 +1,24 @@
 #pragma once
 
+/// @file hybrid_memory_map.hpp
+/// @brief Schema generation support (LEGACY - used for JSON export only)
+///
+/// This file provides schema generation functions for JSON export to Python
+/// visualization tools. It is NOT used in runtime serialization hot paths.
+///
+/// Runtime serialization uses StructLayout<T> directly. This file exists to
+/// support get_hybrid_schema<T>() which generates TypeSchema objects for
+/// JSON export.
+///
+/// Future: Could be replaced by reading from StructLayout constexpr metadata
+/// and generating TypeSchema at runtime for JSON export.
+///
+/// Architecture:
+///   SchemaGenerator → hybrid_memory_map.hpp → memory_map.hpp → JSON export
+///   (Parallel to runtime serialization path)
+
 #include "memory_map.hpp"
+#include "../layout/block_types.hpp"
 #include "../../traits/container_detection.hpp"
 #include "../../containers/container_registration.hpp"
 #include <cstddef>
@@ -9,13 +27,15 @@
 namespace sertial {
 
 // ============================================================================
-// Hybrid Memory Map - Single Source of Truth
+// Hybrid Memory Map - Schema Generation Support (Legacy)
 // ============================================================================
 // Analyzes struct layout to create optimal serialization plan:
 // - FixedBlock: Consecutive fixed fields → single memcpy
 // - PaddingBlock: Struct padding to skip (not in packed format)
 // - DynamicBlock: Variable-size fields (runtime size evaluation)
 // - RuntimeOffsetBlock: Fixed fields after dynamic (runtime offset)
+//
+// Block type definitions are now in layout/block_types.hpp (single source of truth).
 //
 // TODO: Currently HybridMemoryMap preserves alignment padding in nested structs,
 //       resulting in slightly larger output than MemoryMap's aggressive packing.
@@ -76,81 +96,11 @@ constexpr auto visit_field_by_index(
     return result;
 }
 
-// ============================================================================
-// Block Type Definitions
-// ============================================================================
+// Block type definitions (FixedBlock, PaddingBlock, DynamicBlock, etc.) are
+// now in layout/block_types.hpp to eliminate duplication with block_executor.hpp
 
-/// @brief Block type enumeration for execution order
-enum class BlockType : uint8_t {
-    Fixed,          // Fixed-size memcpy with compile-time offset
-    Padding,        // Padding in struct (skipped in packed format)
-    Dynamic,        // Variable-size field (runtime size)
-    RuntimeOffset   // Fixed-size memcpy with runtime offset
-};
-
-/// @brief Describes a consecutive region of fixed-size fields
-struct FixedBlock {
-    std::size_t src_offset;      // Offset in struct
-    std::size_t dst_offset;      // Offset in packed buffer (compile-time known)
-    std::size_t size;            // Bytes to memcpy
-    std::size_t field_start;     // First field index
-    std::size_t field_count;     // Number of consecutive fields
-    
-    constexpr FixedBlock() = default;
-    constexpr FixedBlock(std::size_t src, std::size_t dst, std::size_t sz, 
-                         std::size_t fs = 0, std::size_t fc = 0)
-        : src_offset(src), dst_offset(dst), size(sz), 
-          field_start(fs), field_count(fc) {}
-};
-
-/// @brief Describes padding bytes in the struct (removed in packed format)
-struct PaddingBlock {
-    std::size_t src_offset;      // Where padding starts in struct
-    std::size_t size;            // Padding bytes to skip
-    
-    constexpr PaddingBlock() = default;
-    constexpr PaddingBlock(std::size_t src, std::size_t sz)
-        : src_offset(src), size(sz) {}
-};
-
-/// @brief Describes a variable-size field that needs runtime evaluation
-struct DynamicBlock {
-    std::size_t field_index;           // Which field in the struct
-    std::size_t src_offset;            // Offset of container in struct
-    std::size_t base_dst_offset;       // Where to start in packed buffer
-    std::size_t element_size;          // sizeof(T) for vector<T>
-    std::size_t capacity;              // Max elements (for fixed containers)
-    bool needs_length_prefix;          // Serialize size() first?
-    
-    constexpr DynamicBlock() = default;
-    constexpr DynamicBlock(std::size_t fidx, std::size_t src, std::size_t dst,
-                          std::size_t elem_sz, std::size_t cap, bool prefix = true)
-        : field_index(fidx), src_offset(src), base_dst_offset(dst),
-          element_size(elem_sz), capacity(cap), needs_length_prefix(prefix) {}
-};
-
-/// @brief Describes fixed fields after dynamic fields (runtime offset needed)
-struct RuntimeOffsetBlock {
-    std::size_t src_offset;      // Offset in struct
-    std::size_t size;            // Bytes to memcpy
-    std::size_t field_start;     // First field index
-    std::size_t field_count;     // Number of fields
-    
-    constexpr RuntimeOffsetBlock() = default;
-    constexpr RuntimeOffsetBlock(std::size_t src, std::size_t sz,
-                                 std::size_t fs = 0, std::size_t fc = 0)
-        : src_offset(src), size(sz), field_start(fs), field_count(fc) {}
-};
-
-/// @brief Descriptor for execution order (which block to execute next)
-struct BlockDescriptor {
-    BlockType type;
-    uint16_t index;              // Index into respective block array
-    
-    constexpr BlockDescriptor() : type(BlockType::Fixed), index(0) {}
-    constexpr BlockDescriptor(BlockType t, uint16_t idx) 
-        : type(t), index(idx) {}
-};
+// Block type definitions (FixedBlock, PaddingBlock, DynamicBlock, etc.) are
+// now in layout/block_types.hpp to eliminate duplication with block_executor.hpp
 
 } // namespace detail
 

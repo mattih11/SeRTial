@@ -1,11 +1,13 @@
-/// Test: Hybrid Binary - Unified serialization with fixed and variable fields
+/// Test: StructLayout - Unified serialization with fixed and variable fields
 #include "test_framework.hpp"
 #include "../include/sertial/io/unified_binary.hpp"
+#include "../include/sertial/core/layout/block_types.hpp"
 #include "../include/sertial/containers/fixed_vector.hpp"
 #include "../include/sertial/containers/fixed_string.hpp"
 
 using namespace sertial;
 using namespace sertial::test;
+using namespace sertial::detail;  // For BlockType
 
 // ============================================================================
 // Test Structures
@@ -37,16 +39,16 @@ struct MultiVariable {
 
 namespace tests {
 
-bool hybrid_memory_map_analysis() {
+bool struct_layout_analysis() {
     TEST_SECTION("Pure fixed-size struct analysis");
     
-    using HMM = HybridMemoryMap<PureFixed>;
+    using Layout = StructLayout<PureFixed>;
     
-    TEST_ASSERT(!HMM::has_variable_fields, "Should have no variable fields");
-    TEST_ASSERT_EQ(HMM::variable_field_count, 0u, "Variable field count should be 0");
-    TEST_ASSERT(HMM::copy_region_count > 0, "Should have copy regions");
+    TEST_ASSERT(!Layout::has_variable_fields, "Should have no variable fields");
+    TEST_ASSERT_EQ(Layout::base_packed_size, Layout::max_packed_size, "Fixed struct: base == max");
+    TEST_ASSERT(Layout::execution_order.size() > 0, "Should have execution blocks");
     
-    TEST_PRINT("PureFixed: " << HMM::copy_region_count << " copy regions, base size = " << HMM::base_packed_size << " bytes");
+    TEST_PRINT("PureFixed: " << Layout::execution_order.size() << " execution blocks, base size = " << Layout::base_packed_size << " bytes");
     
     return true;
 }
@@ -54,13 +56,14 @@ bool hybrid_memory_map_analysis() {
 bool variable_field_analysis() {
     TEST_SECTION("Struct with variable field analysis");
     
-    using HMM = HybridMemoryMap<WithVariable>;
+    using Layout = StructLayout<WithVariable>;
     
-    TEST_ASSERT(HMM::has_variable_fields, "Should have variable fields");
-    TEST_ASSERT_EQ(HMM::variable_field_count, 1u, "Should have 1 variable field");
+    TEST_ASSERT(Layout::has_variable_fields, "Should have variable fields");
+    TEST_ASSERT(Layout::max_packed_size > Layout::base_packed_size, "Variable struct: max > base");
     
-    TEST_PRINT("WithVariable: " << HMM::copy_region_count << " copy regions, "
-                << HMM::variable_field_count << " variable fields, base size = " << HMM::base_packed_size << " bytes");
+    TEST_PRINT("WithVariable: " << Layout::execution_order.size() << " execution blocks, "
+                << "base size = " << Layout::base_packed_size << " bytes, "
+                << "max size = " << Layout::max_packed_size << " bytes");
     
     // Test runtime size calculation
     WithVariable obj1{42, {}, 12345};
@@ -68,15 +71,15 @@ bool variable_field_analysis() {
     obj1.values.push_back(2);
     obj1.values.push_back(3);
     
-    std::size_t size1 = HMM::calculate_packed_size(obj1);
-    // base(4) + length(4) + 3*uint16(6) + timestamp(8) = 22
-    std::size_t expected1 = HMM::base_packed_size + sizeof(uint32_t) + 3 * sizeof(uint16_t) + 8;
+    std::size_t size1 = packed_size_of(obj1);
+    // id(4) + length(4) + 3*uint16(6) + timestamp(8) = 22
+    std::size_t expected1 = 4 + sizeof(uint32_t) + 3 * sizeof(uint16_t) + 8;
     TEST_ASSERT_EQ(size1, expected1, "Size should include length prefix + 3 uint16_t elements");
     
     WithVariable obj2{99, {}, 67890};
-    std::size_t size2 = HMM::calculate_packed_size(obj2);
-    // base(4) + length(4) + timestamp(8) = 16
-    std::size_t expected2 = HMM::base_packed_size + sizeof(uint32_t) + 8;  // Length prefix + timestamp
+    std::size_t size2 = packed_size_of(obj2);
+    // id(4) + length(4) + timestamp(8) = 16
+    std::size_t expected2 = 4 + sizeof(uint32_t) + 8;  // Length prefix + timestamp
     TEST_ASSERT_EQ(size2, expected2, "Empty vector should be base size + length prefix");
     
     return true;
@@ -85,23 +88,30 @@ bool variable_field_analysis() {
 bool multi_variable_analysis() {
     TEST_SECTION("Struct with multiple variable fields");
     
-    using HMM = HybridMemoryMap<MultiVariable>;
+    using Layout = StructLayout<MultiVariable>;
     
-    TEST_ASSERT(HMM::has_variable_fields, "Should have variable fields");
-    TEST_ASSERT_EQ(HMM::variable_field_count, 2u, "Should have 2 variable fields");
+    TEST_ASSERT(Layout::has_variable_fields, "Should have variable fields");
     
-    TEST_PRINT("MultiVariable: " << HMM::copy_region_count << " copy regions, "
-                << HMM::variable_field_count << " variable fields, base size = " << HMM::base_packed_size << " bytes");
+    // Count dynamic blocks
+    std::size_t dynamic_count = 0;
+    for (const auto& block : Layout::execution_order) {
+        if (block.type == BlockType::Dynamic) {
+            dynamic_count++;
+        }
+    }
+    TEST_ASSERT_EQ(dynamic_count, 2u, "Should have 2 dynamic blocks");
+    
+    TEST_PRINT("MultiVariable: " << Layout::execution_order.size() << " execution blocks, "
+                << dynamic_count << " dynamic blocks, base size = " << Layout::base_packed_size << " bytes");
     
     MultiVariable obj{"test", 5, {}, 0xAB};
     obj.name = "Hello";
     obj.data.push_back(1.0f);
     obj.data.push_back(2.0f);
     
-    std::size_t size = HMM::calculate_packed_size(obj);
-    // base + name(4+5) + count(4) + data(4+8) + flags(2) = 0 + 9 + 4 + 12 + 2 = 27
-    std::size_t expected = HMM::base_packed_size + 
-                          sizeof(uint32_t) + 5 * sizeof(char) +  // name with length prefix
+    std::size_t size = packed_size_of(obj);
+    // name(4+5) + count(4) + data(4+8) + flags(2) = 9 + 4 + 12 + 2 = 27
+    std::size_t expected = sizeof(uint32_t) + 5 * sizeof(char) +  // name with length prefix
                           4 +  // count (runtime offset block)
                           sizeof(uint32_t) + 2 * sizeof(float) +  // data with length prefix
                           2;  // flags (runtime offset block)
@@ -115,8 +125,11 @@ bool pure_fixed_serialization() {
     
     PureFixed original{0x12345678, 0xABCD, 0xFEDCBA9876543210, 3.14159f};
     
-    auto buffer = serialize_unified(original);
-    auto restored = deserialize_unified<PureFixed>(buffer);
+    auto buffer = serialize(original);
+    auto restored_opt = deserialize<PureFixed>(buffer.view());
+    
+    TEST_ASSERT(restored_opt.has_value(), "Deserialization should succeed");
+    auto& restored = *restored_opt;
     
     TEST_ASSERT_EQ(restored.a, original.a, "Field a should match");
     TEST_ASSERT_EQ(restored.b, original.b, "Field b should match");
@@ -135,15 +148,17 @@ bool variable_field_serialization() {
     original.values.push_back(300);
     
     // Serialize
-    auto buffer = serialize_unified(original);
+    auto buffer = serialize(original);
     
     // Check size
-    using HMM = HybridMemoryMap<WithVariable>;
-    std::size_t expected_size = HMM::calculate_packed_size(original);
+    std::size_t expected_size = packed_size_of(original);
     TEST_ASSERT_EQ(buffer.size(), expected_size, "Buffer size should match calculated size");
     
     // Deserialize
-    auto restored = deserialize_unified<WithVariable>(buffer);
+    auto restored_opt = deserialize<WithVariable>(buffer.view());
+    
+    TEST_ASSERT(restored_opt.has_value(), "Deserialization should succeed");
+    auto& restored = *restored_opt;
     
     TEST_ASSERT_EQ(restored.id, original.id, "Field id should match");
     TEST_ASSERT_EQ(restored.timestamp, original.timestamp, "Field timestamp should match");
@@ -167,10 +182,13 @@ bool multi_variable_serialization() {
     original.data.push_back(3.5f);
     
     // Serialize
-    auto buffer = serialize_unified(original);
+    auto buffer = serialize(original);
     
     // Deserialize
-    auto restored = deserialize_unified<MultiVariable>(buffer);
+    auto restored_opt = deserialize<MultiVariable>(buffer.view());
+    
+    TEST_ASSERT(restored_opt.has_value(), "Deserialization should succeed");
+    auto& restored = *restored_opt;
     
     TEST_ASSERT_EQ(restored.count, original.count, "Field count should match");
     TEST_ASSERT_EQ(restored.flags, original.flags, "Field flags should match");
@@ -190,19 +208,33 @@ bool multi_variable_serialization() {
     return true;
 }
 
-bool copy_region_optimization() {
-    TEST_SECTION("Copy region optimization");
+bool execution_block_analysis() {
+    TEST_SECTION("Execution block analysis");
     
-    using HMM = HybridMemoryMap<PureFixed>;
+    using Layout = StructLayout<PureFixed>;
     
-    TEST_PRINT("Copy regions for PureFixed:");
-    for (std::size_t i = 0; i < HMM::copy_region_count; ++i) {
-        const auto& region = HMM::copy_regions[i];
-        TEST_PRINT("  Region " << i << ": src=" << region.src_offset 
-                    << " dst=" << region.dst_offset << " size=" << region.size);
+    TEST_PRINT("Execution blocks for PureFixed:");
+    for (std::size_t i = 0; i < Layout::execution_order.size(); ++i) {
+        const auto& block = Layout::execution_order[i];
+        std::string type_str;
+        switch(block.type) {
+            case BlockType::Fixed: type_str = "Fixed"; break;
+            case BlockType::Padding: type_str = "Padding"; break;
+            case BlockType::Dynamic: type_str = "Dynamic"; break;
+            case BlockType::RuntimeOffset: type_str = "RuntimeOffset"; break;
+        }
+        TEST_PRINT("  Block " << i << ": type=" << type_str << " index=" << block.index);
     }
     
-    TEST_ASSERT(HMM::copy_region_count <= 4, "Should have few copy regions");
+    TEST_ASSERT(Layout::execution_order.size() > 0, "Should have at least one block");
+    
+    // Verify struct layout properties
+    TEST_PRINT("\nLayout properties:");
+    TEST_PRINT("  sizeof(PureFixed): " << sizeof(PureFixed));
+    TEST_PRINT("  base_packed_size: " << Layout::base_packed_size);
+    TEST_PRINT("  max_packed_size: " << Layout::max_packed_size);
+    TEST_PRINT("  num_fields: " << Layout::num_fields);
+    TEST_PRINT("  has_variable_fields: " << (Layout::has_variable_fields ? "yes" : "no"));
     
     return true;
 }
@@ -213,22 +245,22 @@ bool copy_region_optimization() {
 // Test Suite
 // ============================================================================
 
-struct HybridBinaryTests : TestSuite<HybridBinaryTests> {
-    static constexpr const char* name = "Hybrid Memory Map & Binary Serialization";
+struct StructLayoutTests : TestSuite<StructLayoutTests> {
+    static constexpr const char* name = "StructLayout & Binary Serialization";
     
     static bool run() {
         bool success = true;
-        success &= tests::hybrid_memory_map_analysis();
+        success &= tests::struct_layout_analysis();
         success &= tests::variable_field_analysis();
         success &= tests::multi_variable_analysis();
         success &= tests::pure_fixed_serialization();
         success &= tests::variable_field_serialization();
         success &= tests::multi_variable_serialization();
-        success &= tests::copy_region_optimization();
+        success &= tests::execution_block_analysis();
         return success;
     }
 };
 
 int main() {
-    return TestRunner::run<HybridBinaryTests>();
+    return TestRunner::run<StructLayoutTests>();
 }

@@ -20,19 +20,19 @@ You should have received a copy of the GNU General Public License along with thi
 
 - **Zero Runtime Allocation**: Stack-allocated buffers with compile-time max size computation
 - **Compile-Time Reflection**: Automatic struct serialization via reflect-cpp
-- **Variable-Size Fields**: Support for `fixed_vector<T,N>` and `fixed_string<N>` with runtime sizes
-- **HybridMemoryMap**: Unified serialization for both fixed and variable-size types
+- **Variable-Size Fields**: Support for `fixed_vector<T,N>`, `fixed_string<N>`, and `RingBuffer<T,N>` with runtime sizes
+- **StructLayout<T>**: Single source of truth for compile-time type analysis and serialization
 - **Block-Based Optimization**: Efficient block execution for optimal performance
-- **Simple API**: `serialize(obj)` / `deserialize<T>(data)`
+- **Simple API**: `serialize(obj)` / `deserialize<T>(data)` - zero boilerplate
 
 ## Current Status
 
 ### ✅ Phase 1: Core Functionality (Complete)
 - Fixed-size struct serialization with automatic padding elimination
-- Variable-size field support (fixed_vector, fixed_string)
-- HybridMemoryMap for unified serialization
-- RingBuffer implementation with full test coverage
-- Comprehensive documentation (SIZE_CALCULATIONS.md, PADDING_AND_PORTABILITY.md)
+- Variable-size field support (fixed_vector, fixed_string, RingBuffer)
+- StructLayout<T> as single source of truth for type analysis
+- Block-based serialization with symmetric operations
+- Comprehensive documentation and test coverage
 
 ### ✅ Phase 2: Concept-Based Container Registration (Complete)
 - **C++20 Concepts**: `SerializableContainer` concept for automatic container detection
@@ -83,8 +83,8 @@ int main() {
     auto restored = deserialize<Player>(buffer.view());
     
     // Compile-time analysis
-    static_assert(HybridMemoryMap<Player>::base_packed_size == 20);
-    static_assert(!HybridMemoryMap<Player>::has_variable_fields);
+    static_assert(Message<Player>::base_packed_size == 20);
+    static_assert(!Message<Player>::has_variable_fields);
 }
 ```
 
@@ -165,7 +165,7 @@ cd build
 ./test_foundation       # Core containers and type traits
 ./test_serialization    # High-level serialize/deserialize API
 ./test_padding          # Padding analysis
-./test_hybrid_binary    # HybridMemoryMap and variable-size serialization
+./test_hybrid_binary    # Block-based serialization with variable-size fields
 ./test_endianness       # Endianness conversion
 
 # Run all tests
@@ -210,8 +210,8 @@ cd build
 3. **Memory Analysis** - Compile-time layout inspection
    ```cpp
    // All computed at compile-time, zero runtime cost
-   using HMM = HybridMemoryMap<Position<>>;
-   constexpr auto max_size = HMM::max_packed_size;
+   using Layout = Message<Position<>>;
+   constexpr auto max_size = Layout::max_packed_size;
    constexpr auto has_var = HMM::has_variable_fields;
    constexpr auto regions = HMM::fixed_count;
    ```
@@ -297,7 +297,7 @@ namespace sertial {
 // Serialize a value to a stack-allocated buffer
 // Returns static_buffer<max_packed_size> where max size is computed at compile-time
 template<typename T>
-auto serialize(const T& value) -> static_buffer<HybridMemoryMap<T>::max_packed_size>;
+auto serialize(const T& value) -> static_buffer<Message<T>::max_packed_size>;
 
 // Serialize into an existing buffer (returns actual bytes written)
 template<typename T>
@@ -310,43 +310,62 @@ std::optional<T> deserialize(std::span<const std::byte> data);
 }
 ```
 
-### HybridMemoryMap<T> - Compile-Time Layout Analysis
-
-```cpp
-template<typename T>
-struct HybridMemoryMap {
-    // Size information
-    static constexpr std::size_t max_packed_size;   // Maximum serialized size
-    static constexpr std::size_t base_packed_size;  // Size of fixed fields before dynamic content
-    
-    // Type characteristics
-    static constexpr bool has_variable_fields;      // Contains vectors/strings?
-    static constexpr bool has_padding;              // Has alignment padding?
-    
-    // Block layout (for optimization)
-    static constexpr std::size_t fixed_count;       // Number of fixed copy regions
-    static constexpr std::size_t dynamic_count;     // Number of dynamic fields
-    static constexpr std::size_t runtime_offset_block_count;  // Fixed fields after dynamic
-    
-    // Runtime size calculation (for variable-size types)
-    static std::size_t calculate_packed_size(const T& value);
-};
-```
-
-### Message<T> Wrapper
+### Message<T> - High-Level API
 
 ```cpp
 template<typename T>
 struct Message {
-    // Compile-time information (delegates to HybridMemoryMap)
-    static constexpr std::size_t max_buffer_size = HybridMemoryMap<T>::max_packed_size;
-    static constexpr bool has_variable_fields = HybridMemoryMap<T>::has_variable_fields;
-    static constexpr std::size_t field_count;      // Number of fields
+    // Size information
+    static constexpr std::size_t max_packed_size;   // Maximum serialized size
+    static constexpr std::size_t base_packed_size;  // Size of fixed fields only
     
-    using buffer_type = std::array<std::byte, max_buffer_size>;
+    // Type characteristics
+    static constexpr bool has_variable_fields;      // Contains vectors/strings?
+    static constexpr std::size_t field_count;       // Number of fields
     
-    // Serialization (returns actual bytes written)
+    using buffer_type = std::array<std::byte, max_packed_size>;
+    
+    // Simple API
+    static Result<buffer_type> serialize(const T& value);
+    static DeserializeResult<T> deserialize(std::span<const std::byte> data);
+    
+    // Advanced API
     static std::size_t serialize_to(const T& value, buffer_type& buffer);
+    static std::size_t calculate_packed_size(const T& value);
+};
+```
+
+### StructLayout<T> - Advanced Direct API
+
+For hot paths or when you need maximum control:
+
+```cpp
+template<typename T>
+struct StructLayout {
+    // Same compile-time info as Message<T>
+    static constexpr std::size_t max_packed_size;
+    static constexpr std::size_t base_packed_size;
+    static constexpr bool has_variable_fields;
+    
+    using buffer_type = std::array<std::byte, max_packed_size>;
+    
+    // Direct serialization (no Result wrapper)
+    static std::size_t serialize(const T& obj, std::span<std::byte, max_packed_size> dest);
+    static std::size_t serialize(const T& obj, std::span<std::byte> dest);  // Returns 0 on error
+    
+    // Direct deserialization (returns optional)
+    static std::optional<T> deserialize_opt(std::span<const std::byte> src);
+    
+    // Runtime size calculation
+    static std::size_t calculate_packed_size(const T& obj);
+};
+```
+
+**When to use which:**
+- **Message<T>**: Simple usage, prototyping, convenience wrappers (Result types)
+- **StructLayout<T>**: Hot paths, embedded systems, when you need direct control
+
+Both provide identical compile-time guarantees and zero-allocation serialization.
     
     // Convenience wrapper (returns static_buffer)
     static auto to_buffer(const T& value);
@@ -513,7 +532,7 @@ SeRTial/
 │   ├── test_serialization.cpp   # High-level API tests
 │   ├── test_padding.cpp         # Padding analysis tests
 │   ├── test_endianness.cpp      # Endianness conversion tests
-│   └── test_hybrid_binary.cpp   # HybridMemoryMap and variable-size tests
+│   └── test_hybrid_binary.cpp   # Block-based serialization and variable-size tests
 └── scripts/
     ├── sertial-inspect          # CLI schema visualizer
     └── sertial-gui              # GUI schema visualizer
@@ -525,7 +544,7 @@ SeRTial/
 
 SeRTial uses a **unified block-based serialization** approach that handles both fixed-size and variable-size types through a single code path:
 
-1. **HybridMemoryMap**: Analyzes struct layout at compile-time and generates a block execution plan
+1. **StructLayout<T>**: Analyzes struct layout at compile-time and generates a block execution plan
 2. **Block Types**:
    - **Fixed blocks**: Contiguous runs of fixed-size fields (copied via memcpy)
    - **Padding blocks**: Gaps between fields (skipped during serialization)
@@ -668,7 +687,7 @@ For messages with variable-size fields (vectors, strings, etc.):
   1. **Struct layout**: In-memory representation with maximum capacity
   2. **Max capacity**: Serialized with all containers at maximum size
   3. **Runtime layout**: Actual serialized format based on current slider values
-- **Block Execution Order**: Visual representation of HybridMemoryMap blocks:
+- **Block Execution Order**: Visual representation of serialization blocks:
   - Fixed blocks (blue/green): Contiguous fixed-size fields
   - Length prefixes (gray): 4-byte headers before dynamic fields
   - Dynamic blocks (striped): Variable-size container data
@@ -794,7 +813,6 @@ SeRTial heavily relies on C++20 templates and compile-time computation. Use [C++
 template<typename T>
 struct MemoryMap {
     static constexpr std::size_t packed_size = sizeof(T);
-    static constexpr bool has_padding = false;
 };
 
 template<typename T>
@@ -820,7 +838,6 @@ When you paste the above into [cppinsights.io](https://cppinsights.io/), it show
 template<typename T>
 struct MemoryMap {
     static constexpr std::size_t packed_size = sizeof(T);
-    static constexpr bool has_padding = false;
 };
 
 /* First instantiated from: insights.cpp:21 */
@@ -829,7 +846,6 @@ template<>
 struct MemoryMap<Point>
 {
     static constexpr std::size_t packed_size = 12;   // <-- sizeof(Point) resolved!
-    static constexpr bool has_padding = false;
 };
 #endif
 

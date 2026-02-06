@@ -97,11 +97,10 @@ template<typename T>
 void print_type_info(const char* name) {
     std::cout << "\n" << name << ":\n";
     std::cout << "  sizeof:           " << sizeof(T) << " bytes\n";
-    std::cout << "  packed_size:      " << Message<T>::packed_size << " bytes\n";
-    std::cout << "  has_padding:      " << (Message<T>::has_padding ? "yes" : "no") << "\n";
+    std::cout << "  base_packed_size: " << Message<T>::base_packed_size << " bytes\n";
+    std::cout << "  max_packed_size:  " << Message<T>::max_packed_size << " bytes\n";
+    std::cout << "  has_variable_fields: " << (Message<T>::has_variable_fields ? "yes" : "no") << "\n";
     std::cout << "  field_count:      " << Message<T>::field_count << "\n";
-    std::cout << "  memcpy_count:     " << Message<T>::memcpy_count << "\n";
-    std::cout << "  can_single_memcpy:" << (Message<T>::can_single_memcpy ? "yes" : "no") << "\n";
     std::cout << "  max_buffer_size:  " << Message<T>::max_buffer_size << " bytes\n";
 }
 

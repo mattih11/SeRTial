@@ -244,7 +244,7 @@ std::string export_schema() {
    std::array<std::byte, 10> buffer;  // Too small!
    StructLayout<Player>::serialize(p, buffer);  // Compile error: span size mismatch
    
-   std::array<std::byte, StructLayout<Player>::max_packed_size> correct_buffer;
+   StructLayout<Player>::buffer_type correct_buffer;  // Clean alias, correct size!
    StructLayout<Player>::serialize(p, correct_buffer);  // OK: sizes match
    ```
 8. **Type-safe spans**: Raw pointers replaced with std::span - no pointer arithmetic bugs
@@ -272,11 +272,11 @@ auto schema = get_hybrid_schema<Player>();  // Returns TypeSchema with std::vect
 std::string json = rfl::json::write(schema);  // Must manually keep TypeSchema in sync
 ```
 
-### After (Proposed - Using std::span)
+### After (Proposed - Using std::span with buffer_type alias)
 ```cpp
-// User code - compile-time size validation
+// User code - compile-time size validation with clean type alias
 Player player{42, 100.0f, 1.0f, 2.0f, 3.0f};
-std::array<std::byte, StructLayout<Player>::max_packed_size> buffer;  // Stack allocated!
+StructLayout<Player>::buffer_type buffer;  // Clean alias! Stack allocated, correct size
 std::size_t size = StructLayout<Player>::serialize(player, buffer);  // Compile-time size check
 
 // Schema generation (automatic from StructLayout)
