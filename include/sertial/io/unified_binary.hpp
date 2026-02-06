@@ -2,11 +2,91 @@
 
 #include "../core/traits/hybrid_memory_map.hpp"
 #include "../containers/static_buffer.hpp"
+#include "../containers/ring_buffer.hpp"
 #include <cstring>
 #include <span>
 #include <optional>
 
 namespace sertial {
+
+// ============================================================================
+// RingBuffer Serialization Helpers
+// ============================================================================
+
+namespace detail {
+
+/// @brief Serialize RingBuffer with wrap-around handling
+/// @return Bytes written (length prefix + data)
+template<typename T, std::size_t N>
+inline std::size_t serialize_ring_buffer(const RingBuffer<T, N>& buf, std::byte* dest) {
+    // Write length prefix
+    uint32_t length = static_cast<uint32_t>(buf.size());
+    std::memcpy(dest, &length, sizeof(uint32_t));
+    
+    if (length == 0) {
+        return sizeof(uint32_t);
+    }
+    
+    std::byte* data_dest = dest + sizeof(uint32_t);
+    constexpr std::size_t elem_size = sizeof(T);
+    
+    // Check if data wraps around
+    if (buf.is_wrapped()) {
+        // Two-region copy: tail → end, then start → head
+        std::size_t first_chunk = buf.capacity() - buf.tail_index();
+        
+        // Copy tail → end of buffer (oldest data)
+        std::memcpy(data_dest, 
+                   buf.data_unsafe() + buf.tail_index(), 
+                   first_chunk * elem_size);
+        
+        // Copy start → head (newest data)
+        std::size_t second_chunk = length - first_chunk;
+        std::memcpy(data_dest + first_chunk * elem_size,
+                   buf.data_unsafe(),
+                   second_chunk * elem_size);
+    } else {
+        // Single contiguous region: tail → head
+        std::memcpy(data_dest,
+                   buf.data_unsafe() + buf.tail_index(),
+                   length * elem_size);
+    }
+    
+    return sizeof(uint32_t) + length * elem_size;
+}
+
+/// @brief Deserialize RingBuffer (always produces non-wrapped state)
+/// @return true on success, false on error
+template<typename T, std::size_t N>
+inline bool deserialize_ring_buffer(RingBuffer<T, N>& buf, const std::byte* src, std::size_t available) {
+    if (available < sizeof(uint32_t)) {
+        return false;
+    }
+    
+    uint32_t length;
+    std::memcpy(&length, src, sizeof(uint32_t));
+    
+    if (length > N) {
+        return false;  // Exceeds capacity
+    }
+    
+    const std::byte* data_src = src + sizeof(uint32_t);
+    std::size_t data_size = length * sizeof(T);
+    
+    if (available < sizeof(uint32_t) + data_size) {
+        return false;
+    }
+    
+    // Deserialize to non-wrapped state (head=length, tail=0)
+    if (data_size > 0) {
+        std::memcpy(buf.data_unsafe(), data_src, data_size);
+    }
+    buf.set_size_unsafe(length);
+    
+    return true;
+}
+
+} // namespace detail
 
 // ============================================================================
 // Unified Binary Serialization using HybridMemoryMap
@@ -62,7 +142,14 @@ inline std::size_t serialize_to_unified(const T& value, std::byte* dest) {
                     detail::visit_field_by_index(nt, block.field_index,
                         [&](const auto& field) {
                             using FieldType = std::decay_t<decltype(field)>;
-                            if constexpr (detail::is_fixed_container_impl<FieldType>::value) {
+                            
+                            // Check if this is a RingBuffer (special handling)
+                            if constexpr (detail::is_ring_buffer_v<FieldType>) {
+                                std::size_t bytes_written = detail::serialize_ring_buffer(field, dest + current_offset);
+                                current_offset += bytes_written;
+                            }
+                            // Regular fixed-capacity containers
+                            else if constexpr (detail::is_fixed_container_impl<FieldType>::value) {
                                 // Write length prefix (uint32_t)
                                 uint32_t length = static_cast<uint32_t>(field.size());
                                 std::memcpy(dest + current_offset, &length, sizeof(uint32_t));

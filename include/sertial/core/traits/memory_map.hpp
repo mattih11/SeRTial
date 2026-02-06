@@ -141,6 +141,20 @@ struct variable_length_element_size<RingBuffer<T, N>> {
 template<typename T>
 inline constexpr std::size_t variable_length_element_size_v = variable_length_element_size<T>::value;
 
+// ============================================================================
+// RingBuffer Detection Trait (used by serialization logic)
+// ============================================================================
+
+/// @brief Check if a type is RingBuffer (for special wrap-around serialization)
+template<typename T>
+struct is_ring_buffer : std::false_type {};
+
+template<typename T, std::size_t N>
+struct is_ring_buffer<RingBuffer<T, N>> : std::true_type {};
+
+template<typename T>
+inline constexpr bool is_ring_buffer_v = is_ring_buffer<T>::value;
+
 /// @brief Get max elements for a fixed-capacity container (0 for unbounded)
 /// @deprecated Use container_max_size_v<T> for SerializableContainer types
 template<typename T>

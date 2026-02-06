@@ -7,6 +7,9 @@
 
 namespace sertial {
 
+// Forward declarations
+template<typename T, std::size_t N> class RingBuffer;
+
 // ============================================================================
 // Hybrid Memory Map - Single Source of Truth
 // ============================================================================
@@ -690,7 +693,23 @@ struct HybridMemoryMap {
                             detail::visit_field_by_index(nt, block.field_index,
                                 [&](const auto& field_ref) -> int {
                                     using FieldType = std::decay_t<decltype(field_ref)>;
-                                    if constexpr (detail::is_fixed_container_impl<FieldType>::value) {
+                                    
+                                    // Check if this is a RingBuffer (special handling)
+                                    if constexpr (detail::is_ring_buffer_v<FieldType>) {
+                                        auto* container = reinterpret_cast<FieldType*>(dst + block.src_offset);
+                                        std::size_t data_size = length * sizeof(typename FieldType::value_type);
+                                        
+                                        if (current_offset + data_size <= size && length <= container->capacity()) {
+                                            // Deserialize directly into RingBuffer storage
+                                            if (data_size > 0) {
+                                                std::memcpy(container->data_unsafe(), data + current_offset, data_size);
+                                            }
+                                            container->set_size_unsafe(length);  // Sets head=length, tail=0
+                                            current_offset += data_size;
+                                        }
+                                    }
+                                    // Regular fixed-capacity containers
+                                    else if constexpr (detail::is_fixed_container_impl<FieldType>::value) {
                                         // Direct pointer access to mutable container in the struct
                                         auto* container = reinterpret_cast<FieldType*>(dst + block.src_offset);
                                         
