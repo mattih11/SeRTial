@@ -25,6 +25,35 @@ You should have received a copy of the GNU General Public License along with thi
 - **Block-Based Optimization**: Efficient block execution for optimal performance
 - **Simple API**: `serialize(obj)` / `deserialize<T>(data)`
 
+## Current Status
+
+### ✅ Phase 1: Core Functionality (Complete)
+- Fixed-size struct serialization with automatic padding elimination
+- Variable-size field support (fixed_vector, fixed_string)
+- HybridMemoryMap for unified serialization
+- RingBuffer implementation with full test coverage
+- Comprehensive documentation (SIZE_CALCULATIONS.md, PADDING_AND_PORTABILITY.md)
+
+### ✅ Phase 2: Concept-Based Container Registration (Complete)
+- **C++20 Concepts**: `SerializableContainer` concept for automatic container detection
+- **Single Registration Point**: New containers work immediately by satisfying the concept interface
+- **Zero Duplication**: Eliminated 9+ manual trait specializations per container type
+- **Clear Error Messages**: Compiler shows exactly which interface requirement is missing
+- **Backward Compatibility**: Legacy trait APIs still work (internally delegate to concepts)
+
+**See**: `docs/TEMPLATE_PATTERNS.md` for metaprogramming patterns and `docs/CONTAINER_HANDLING.md` for container integration guide.
+
+### ⏳ Phase 3: RingBuffer Integration (Pending)
+- RingBuffer serialization (wrap-around handling)
+- Schema generation for circular buffers
+- Python viewer support
+
+### 📋 Future Work
+- Cross-platform serialization (endianness handling, portable padding)
+- Nested container support
+- Performance profiling tools
+- Additional container types as needed
+
 ## Quick Start
 
 ```cpp
@@ -336,6 +365,59 @@ struct GameMessage {
 };
 ```
 
+### Ring Buffer - Realtime-Safe Circular Buffer
+
+Fixed-capacity circular buffer for realtime systems (perfect for message history):
+
+```cpp
+#include <sertial/containers/ring_buffer.hpp>
+
+// Create buffer with 100-message capacity
+RingBuffer<TimsMessage, 100> buffer;
+
+// Push messages (O(1), no allocation)
+buffer.push_back(msg);  // Automatically overwrites oldest when full
+
+// Access elements
+auto oldest = buffer.front();  // Oldest message
+auto newest = buffer.back();   // Newest message
+auto at_idx = buffer[5];       // By index (0 = oldest)
+
+// Query
+size_t count = buffer.size();
+bool is_full = buffer.full();
+
+// Iterate oldest to newest
+for (const auto& msg : buffer) {
+    process(msg);
+}
+
+// CommRaT-style timestamp lookup
+std::optional<TimsMessage> find_at_timestamp(uint64_t target_ts) {
+    size_t best_idx = 0;
+    uint64_t min_diff = UINT64_MAX;
+    
+    for (size_t i = 0; i < buffer.size(); ++i) {
+        uint64_t diff = std::abs(static_cast<int64_t>(
+            buffer[i].timestamp - target_ts));
+        if (diff < min_diff) {
+            min_diff = diff;
+            best_idx = i;
+        }
+    }
+    return buffer[best_idx];
+}
+```
+
+**Features:**
+- **Zero allocation**: Fixed capacity determined at compile-time
+- **Realtime-safe**: No malloc/free, deterministic O(1) operations
+- **Circular overwrite**: Oldest elements automatically replaced when full
+- **STL-compatible**: Forward iterators, range-based for loops
+- **Thread-safe wrapper ready**: Use with `std::shared_mutex` for multi-reader access
+
+**Example:** `examples/ring_buffer_example.cpp` - CommRaT-style message buffering with timestamp-based retrieval
+
 ### Static Buffers
 
 Pre-allocated buffer types for reuse:
@@ -632,6 +714,51 @@ gen.write_to_file("schemas.json");
 | `make visualize` | Generate schemas and print CLI summary |
 | `make generate_schemas` | Generate `message_schemas.json` only |
 
+## Adding Custom Container Types
+
+With SeRTial's concept-based registration system (Phase 2), adding new serializable containers is straightforward:
+
+### Step 1: Implement the Interface
+
+Your container must satisfy the `SerializableContainer` concept:
+
+```cpp
+template<typename T, std::size_t N>
+class MyContainer {
+public:
+    // Required nested type
+    using value_type = T;
+    
+    // Required compile-time constant (note: max_size_v, not max_size)
+    static constexpr std::size_t max_size_v = N;
+    
+    // Required runtime methods
+    constexpr std::size_t size() const noexcept;
+    constexpr const T* data() const noexcept;
+    
+    // Required for deserialization
+    constexpr T* data_unsafe() noexcept;
+    constexpr void set_size_unsafe(std::size_t n) noexcept;
+    
+    // Your custom interface...
+};
+```
+
+### Step 2: Verify and Use
+
+```cpp
+static_assert(SerializableContainer<MyContainer<int, 10>>, 
+              "MyContainer must satisfy SerializableContainer");
+
+// Use immediately in structs
+struct Message {
+    MyContainer<float, 100> data;  // ✅ Works automatically
+};
+```
+
+**No manual trait specializations needed!** The concept system handles everything.
+
+**See**: `docs/CONTAINER_HANDLING.md` for complete integration guide and `docs/TEMPLATE_PATTERNS.md` for template patterns.
 
 ## Performance
 
