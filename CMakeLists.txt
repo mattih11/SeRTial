@@ -51,6 +51,10 @@ target_link_libraries(test_example PRIVATE sertial_examples)
 add_executable(serialization_example examples/serialization_example.cpp)
 target_link_libraries(serialization_example PRIVATE sertial_examples)
 
+# Ring buffer example - CommRaT-style circular buffer
+add_executable(ring_buffer_example examples/ring_buffer_example.cpp)
+target_link_libraries(ring_buffer_example PRIVATE sertial)
+
 # Main demo executable
 add_executable(${PROJECT_NAME} src/main.cpp)
 target_link_libraries(${PROJECT_NAME} PRIVATE sertial)
@@ -65,6 +69,9 @@ set(TEST_SOURCES
     test_padding
     test_endianness
     test_hybrid_binary
+    test_ring_buffer
+    test_ring_buffer_serialization
+    test_element_padding
 )
 
 foreach(test_name ${TEST_SOURCES})
@@ -76,7 +83,7 @@ endforeach()
 # Compiler Warnings
 # ============================================================================
 
-set(ALL_TARGETS ${PROJECT_NAME} ${TEST_SOURCES} schema_example test_example serialization_example)
+set(ALL_TARGETS ${PROJECT_NAME} ${TEST_SOURCES} schema_example test_example serialization_example ring_buffer_example)
 
 foreach(target ${ALL_TARGETS})
     if(MSVC)
@@ -97,6 +104,9 @@ add_custom_target(run_tests
     COMMAND test_padding
     COMMAND test_endianness
     COMMAND test_hybrid_binary
+    COMMAND test_ring_buffer
+    COMMAND test_ring_buffer_serialization
+    COMMAND test_element_padding
     COMMAND test_example
     DEPENDS ${TEST_SOURCES} test_example
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}

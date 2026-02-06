@@ -34,6 +34,7 @@
 #include "containers/fixed_string.hpp"
 #include "containers/fixed_vector.hpp"
 #include "containers/static_buffer.hpp"
+#include "containers/ring_buffer.hpp"
 #include "containers/container_traits.hpp"
 
 // I/O
