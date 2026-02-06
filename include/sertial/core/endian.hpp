@@ -6,7 +6,7 @@
 #include <bit>
 #include "layout/struct_layout.hpp"
 #include "traits/padding.hpp"
-#include "../traits/container_detection.hpp"
+#include "../containers/container_registration.hpp"
 
 namespace sertial {
 
@@ -184,7 +184,7 @@ void swap_endianness(std::span<std::byte> data) noexcept {
     
     // Compile-time check: fail if struct contains fixed containers
     // (they have variable-length serialized format, not fixed packed layout)
-    static_assert(!detail::struct_has_fixed_containers<T>(),
+    static_assert(!struct_has_serializable_containers<T>(),
         "Structs with fixed_vector/fixed_string have variable-length serialized format. "
         "Endianness conversion must be done during deserialization, not on raw bytes.");
     
@@ -212,7 +212,7 @@ void swap_endianness(std::span<std::byte> data) noexcept {
 /// ```
 template<typename T>
 void swap_endianness_from(std::span<std::byte> data, std::endian source_endian) noexcept {
-    static_assert(!detail::struct_has_fixed_containers<T>(),
+    static_assert(!struct_has_serializable_containers<T>(),
         "Structs with fixed_vector/fixed_string have variable-length serialized format. "
         "Endianness conversion must be done during deserialization.");
     
@@ -241,7 +241,7 @@ void swap_endianness_from(std::span<std::byte> data, std::endian source_endian) 
 /// ```
 template<typename T>
 void swap_endianness_to(std::span<std::byte> data, std::endian target_endian) noexcept {
-    static_assert(!detail::struct_has_fixed_containers<T>(),
+    static_assert(!struct_has_serializable_containers<T>(),
         "Structs with fixed_vector/fixed_string have variable-length serialized format. "
         "Endianness conversion must be done during deserialization.");
     

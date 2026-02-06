@@ -5,6 +5,8 @@
 #include <type_traits>
 #include <span>
 #include <array>
+#include <rfl.hpp>
+#include <rfl/NamedTuple.hpp>
 
 namespace sertial {
 
@@ -245,6 +247,96 @@ struct serialization_view_provider<RingBuffer<T, N>> {
 template<SerializableContainer T>
 constexpr auto get_serialization_spans(const T& container) {
     return serialization_view_provider<T>::get_spans(container);
+}
+
+// ============================================================================
+// Container Type Names (for Schema Metadata)
+// ============================================================================
+
+/**
+ * @brief Get container type name for schema metadata
+ * 
+ * Provides human-readable names for serialized containers in schema output.
+ * Default returns empty string (non-container types).
+ * 
+ * @tparam T Type to get name for
+ */
+template<typename T>
+struct container_type_name {
+    static constexpr const char* value = "";
+};
+
+template<typename T, std::size_t N>
+struct container_type_name<fixed_vector<T, N>> {
+    static constexpr const char* value = "fixed_vector";
+};
+
+template<std::size_t N>
+struct container_type_name<fixed_string<N>> {
+    static constexpr const char* value = "fixed_string";
+};
+
+template<typename T, std::size_t N>
+struct container_type_name<RingBuffer<T, N>> {
+    static constexpr const char* value = "ring_buffer";
+};
+
+/**
+ * @brief Convenience variable template for container type names
+ */
+template<typename T>
+inline constexpr const char* container_type_name_v = container_type_name<T>::value;
+
+// ============================================================================
+// Struct Analysis Helpers  
+// ============================================================================
+
+namespace detail {
+
+/// @brief Extract value type from rfl::Field<Name, Type>
+template<typename Field>
+struct extract_field_type;
+
+template<rfl::internal::StringLiteral Name, typename Type>
+struct extract_field_type<rfl::Field<Name, Type>> {
+    using type = Type;
+};
+
+template<typename Field>
+using field_value_t = typename extract_field_type<Field>::type;
+
+} // namespace detail
+
+/**
+ * @brief Check if any field in a NamedTuple is a SerializableContainer
+ * 
+ * Uses fold expression with SerializableContainer concept for compile-time check.
+ * 
+ * @tparam Fields Field types from rfl::NamedTuple
+ * @return true if any field satisfies SerializableContainer
+ */
+template<typename... Fields>
+constexpr bool has_serializable_containers(rfl::NamedTuple<Fields...>*) {
+    return (SerializableContainer<detail::field_value_t<Fields>> || ...);
+}
+
+/**
+ * @brief Check if a struct contains any SerializableContainer fields
+ * 
+ * Analyzes struct via rfl::named_tuple_t reflection.
+ * 
+ * @tparam T Struct type to analyze
+ * @return true if T has any fixed_vector/fixed_string/RingBuffer fields
+ * 
+ * @note Works with any type that has rfl::named_tuple_t defined
+ */
+template<typename T>
+constexpr bool struct_has_serializable_containers() {
+    if constexpr (requires { typename rfl::named_tuple_t<T>; }) {
+        using NT = rfl::named_tuple_t<T>;
+        return has_serializable_containers(static_cast<NT*>(nullptr));
+    }
+    return false;
 }
 
 // ============================================================================

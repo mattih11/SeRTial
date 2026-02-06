@@ -360,7 +360,7 @@ struct HybridMemoryMap {
     static constexpr bool can_single_memcpy = MM::can_single_memcpy;
     
     // Check if struct has variable fields
-    static constexpr bool has_variable_fields = detail::struct_has_fixed_containers<T>();
+    static constexpr bool has_variable_fields = struct_has_serializable_containers<T>();
     
     // Block counts (computed at compile-time)
     static constexpr std::size_t fixed_block_count = Builder::layout.fixed_count;

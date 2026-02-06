@@ -3,7 +3,6 @@
 #include "../concepts.hpp"
 #include "../traits/padding.hpp"
 #include "block_types.hpp"  // Block type definitions
-#include "../../traits/container_detection.hpp"
 #include "../../containers/container_registration.hpp"
 #include <cstddef>
 #include <array>
