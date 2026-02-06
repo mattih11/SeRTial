@@ -10,6 +10,9 @@
 
 namespace sertial {
 
+// Forward declarations
+template<typename T, std::size_t N> class RingBuffer;
+
 // ============================================================================
 // Field Information (for JSON serialization)
 // ============================================================================
@@ -99,6 +102,10 @@ struct is_variable_length_field<std::vector<T, A>> : std::true_type {};
 template<>
 struct is_variable_length_field<std::string> : std::true_type {};
 
+// RingBuffer specialization (custom serialization, not SerializableContainer)
+template<typename T, std::size_t N>
+struct is_variable_length_field<RingBuffer<T, N>> : std::true_type {};
+
 template<typename T>
 inline constexpr bool is_variable_length_field_v = is_variable_length_field<T>::value;
 
@@ -125,6 +132,12 @@ struct variable_length_element_size<std::string> {
     static constexpr std::size_t value = sizeof(char);
 };
 
+// RingBuffer specialization
+template<typename T, std::size_t N>
+struct variable_length_element_size<RingBuffer<T, N>> {
+    static constexpr std::size_t value = sizeof(T);
+};
+
 template<typename T>
 inline constexpr std::size_t variable_length_element_size_v = variable_length_element_size<T>::value;
 
@@ -138,6 +151,12 @@ struct variable_length_max_elements {
 template<SerializableContainer T>
 struct variable_length_max_elements<T> {
     static constexpr std::size_t value = container_max_size_v<T>;
+};
+
+// RingBuffer specialization
+template<typename T, std::size_t N>
+struct variable_length_max_elements<RingBuffer<T, N>> {
+    static constexpr std::size_t value = N;
 };
 
 template<typename T>

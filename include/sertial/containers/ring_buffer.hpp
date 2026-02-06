@@ -450,6 +450,31 @@ public:
         return result;
     }
     
+    /// @brief Check if buffer data wraps around
+    /// @return true if data crosses the buffer boundary (head <= tail when size > 0)
+    /// @note For serialization - determines if 1 or 2 memcpy operations needed
+    constexpr bool is_wrapped() const noexcept {
+        return size_ > 0 && head_ <= tail_;
+    }
+    
+    /// @brief Get tail index (oldest element position)
+    /// @return Physical index of tail in underlying storage
+    /// @note For serialization - starting position of first data region
+    constexpr size_type tail_index() const noexcept {
+        return tail_;
+    }
+    
+    /// @brief Get head index (next write position)
+    /// @return Physical index of head in underlying storage
+    /// @note For serialization - used in wrap-around calculations
+    constexpr size_type head_index() const noexcept {
+        return head_;
+    }
+    
+    /// @brief Compile-time capacity constant (for SerializableContainer compatibility)
+    /// @note Added for trait detection, but RingBuffer uses custom serialization
+    static constexpr std::size_t max_size_v = MaxSize;
+    
 private:
     std::array<T, MaxSize> data_{};  // Fixed storage, default-initialized
     size_type head_{0};              // Write position (next insert)
