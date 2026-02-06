@@ -109,19 +109,25 @@ void swap_field_at_offset(std::span<std::byte> data) noexcept {
 
 // Note: field_type_t is already defined in padding.hpp, just use it directly
 
-/// @brief Helper to convert runtime array element to compile-time constant
-/// This creates a template instantiation for each index, turning the array
-/// value into a non-type template parameter
+/// @brief Helper to calculate packed offset (cumulative sum of field sizes)
+/// This computes the offset in the SERIALIZED stream, not the struct offset.
+/// Serialization removes padding, so packed offsets differ from struct offsets.
 template<typename T, std::size_t Index>
-struct offset_constant {
-    static constexpr std::size_t value = StructLayout<T>::field_offsets[Index];
+struct packed_offset_constant {
+    static constexpr std::size_t value = []() constexpr {
+        std::size_t offset = 0;
+        for (std::size_t i = 0; i < Index; ++i) {
+            offset += StructLayout<T>::field_sizes[i];
+        }
+        return offset;
+    }();
 };
 
-/// @brief Swap a single field using compile-time offset
+/// @brief Swap a single field using compile-time packed offset
 template<typename T, typename Field, std::size_t Index>
 void swap_one_field(std::span<std::byte> data) noexcept {
     using FieldType = field_type_t<Field>;
-    constexpr std::size_t Offset = offset_constant<T, Index>::value;
+    constexpr std::size_t Offset = packed_offset_constant<T, Index>::value;
     swap_field_at_offset<FieldType, Offset>(data);
 }
 
@@ -151,12 +157,13 @@ void swap_serialized_fields_impl(std::span<std::byte> data, std::index_sequence<
 /// @brief Swap endianness of all fields in serialized (packed) data
 /// 
 /// This operates on the serialized byte stream using compile-time StructLayout
-/// information. All offsets and types are resolved at compile-time, resulting
-/// in a sequence of direct bswap operations with hardcoded offsets.
+/// information. All offsets are PACKED OFFSETS (cumulative field sizes) not
+/// struct offsets, since serialization removes padding. Types and offsets are
+/// resolved at compile-time, resulting in a sequence of direct bswap operations.
 /// 
 /// **IMPORTANT**: Structs with fixed containers (fixed_vector/fixed_string) cannot
 /// use this function, as they have variable-length serialized format.
-/// Only works on fixed-size serialized data from trivially copyable structs.
+/// Only works on fixed-size serialized data.
 /// 
 /// @tparam T The message type
 /// @param data The serialized data (will be modified in-place)

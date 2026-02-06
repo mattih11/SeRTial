@@ -102,7 +102,7 @@ add_custom_target(run_tests
     COMMAND test_foundation
     COMMAND test_serialization
     COMMAND test_padding
-    # COMMAND test_endianness  # TODO: Fix packed offset calculation for endian swapping
+    COMMAND test_endianness
     COMMAND test_struct_layout
     COMMAND test_ring_buffer
     COMMAND test_ring_buffer_serialization
