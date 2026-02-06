@@ -24,6 +24,12 @@
 - ✅ Endian swap now uses serialized offsets, not struct offsets
 - ✅ All tests passing (12/12)
 
+### Phase 6: Container Registration Consolidation
+- ✅ Moved container_type_name<T> to container_registration.hpp
+- ✅ Moved has_serializable_containers() helpers
+- ✅ Deleted include/sertial/traits/container_detection.hpp (62 lines)
+- ✅ True single registration point achieved
+
 ## Current Architecture
 
 ```
@@ -75,21 +81,31 @@ constexpr std::size_t value = []() constexpr {
 **Complexity**: Medium (2 hours actual)  
 **Impact**: High (cross-platform endianness support now functional)
 
-### 2. Container Registration Consolidation
+### ~~2. Container Registration Consolidation~~ ✅ COMPLETE
 
-**Current**: Container detection split across files
-- `container_registration.hpp` - SerializableContainer concept
-- `container_detection.hpp` - container_type_name, struct_has_fixed_containers()
+**Status**: COMPLETE - True single registration point achieved
 
-**Goal**: Merge remaining helpers into container_registration.hpp
+**Goal**: Merge remaining helpers from container_detection.hpp into container_registration.hpp
 
-**Changes**:
-- Move `container_type_name<T>` to container_registration.hpp
-- Move `struct_has_fixed_containers()` to container_registration.hpp
-- Delete container_detection.hpp
+**Changes Implemented**:
+- Moved `container_type_name<T>` struct and specializations
+- Moved `has_serializable_containers()` and `struct_has_serializable_containers()` functions
+- Added `detail::extract_field_type` helper for rfl::Field type extraction
+- Deleted `include/sertial/traits/container_detection.hpp` (62 lines removed)
 
-**Complexity**: Low  
-**Impact**: Single registration point (already 90% there)
+**Updated References**:
+- `struct_has_fixed_containers()` → `struct_has_serializable_containers()` (clearer naming)
+- `endian.hpp`: Now uses container_registration.hpp directly
+- `struct_layout.hpp`: Removed container_detection.hpp include
+
+**Result**:
+- ✅ Single file: `containers/container_registration.hpp`
+- ✅ All container registration in one place
+- ✅ All 12/12 tests passing
+- ✅ Zero duplication
+
+**Complexity**: Low (1 hour actual)  
+**Impact**: Medium (architecture simplification, easier onboarding)
 
 ### 3. RingBuffer Schema Metadata Enhancement
 
@@ -175,7 +191,7 @@ struct CustomSerializer<MyType> {
 | Priority | Task | Complexity | Impact | Effort | Status |
 |----------|------|------------|--------|--------|--------|
 | ~~**High**~~ | ~~Fix test_endianness~~ | ~~Medium~~ | ~~High (cross-platform)~~ | ~~2-3 hours~~ | ✅ **COMPLETE** |
-| **High** | Container registration consolidation | Low | Medium (simplification) | 1 hour | Ready |
+| ~~**High**~~ | ~~Container registration consolidation~~ | ~~Low~~ | ~~Medium (simplification)~~ | ~~1 hour~~ | ✅ **COMPLETE** |
 | **Medium** | RingBuffer schema metadata | Low | Low (documentation) | 1 hour | Ready |
 | **Medium** | Performance profiling/optimization | Medium | TBD | 4-6 hours | Ready |
 | **Low** | Nested container support | High | Medium (new feature) | 8-12 hours | Future |
@@ -204,9 +220,9 @@ struct CustomSerializer<MyType> {
 
 ### ~~Short Term (Next Session)~~ ✅ COMPLETE
 1. ~~**Fix test_endianness**~~ ✅ - Critical for cross-platform support
-2. **Container registration consolidation** - Complete the single-registration-point goal
+2. ~~**Container registration consolidation**~~ ✅ - Complete the single-registration-point goal
 
-### Medium Term (Next Week)
+### Medium Term (This Week)
 3. **RingBuffer schema metadata** - Low effort, improves documentation
 4. **Performance profiling** - Establish baseline, identify bottlenecks
 
