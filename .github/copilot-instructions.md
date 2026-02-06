@@ -4,8 +4,8 @@
 
 **SeRTial** (Serialization for Real-Time) is a C++20 binary serialization library built on compile-time reflection (reflect-cpp). It provides zero-allocation, high-performance message serialization for real-time and embedded systems.
 
-**Current Status**: Production-ready core with fixed containers (fixed_vector, fixed_string, static_buffer)  
-**Development**: Exploring RingBuffer integration for circular buffer serialization
+**Current Status**: Production-ready core with fixed containers (fixed_vector, fixed_string, static_buffer, RingBuffer)  
+**Phase 3 Complete**: Generic span-based serialization with full RingBuffer support and schema transparency
 
 ### Core Philosophy
 - **Compile-time everything**: Type analysis, size computation, and layout mapping happen at compile time
@@ -13,6 +13,7 @@
 - **Real-time safe**: Deterministic execution, no exceptions in hot paths, bounded execution time
 - **Template metaprogramming**: Heavy use of C++20 concepts, SFINAE, and constexpr for compile-time dispatch
 - **Simple user API**: Complex type trait machinery hidden - users see only `serialize(obj)` and `deserialize<T>(data)`
+- **Generic architecture**: Zero container-specific branches - span-based approach works for all containers
 
 ## Architecture
 
@@ -38,25 +39,37 @@ struct Message {
 3. **Dynamic**: Variable-size containers (4-byte length prefix + runtime data)
 4. **RuntimeOffset**: Fixed-size fields after dynamic content (offset computed at runtime)
 
-### Type Trait System
-Three layers of type introspection:
+### Type Trait System & Span-Based Serialization
 
-1. **Container Detection** (`traits/container_detection.hpp`):
-   - `is_fixed_container_v<T>`: Is T a fixed_vector/fixed_string?
-   - `fixed_container_capacity_v<T>`: Compile-time capacity
-   - `fixed_container_element_size_v<T>`: Element byte size
+**Single Registration Point**: `containers/container_registration.hpp` provides unified container integration.
 
-2. **Container Traits** (`containers/container_traits.hpp`):
-   - `is_fixed_capacity<T>`: Has fixed max capacity?
-   - `container_category<T>`: FixedCapacity/DynamicCapacity/NotAContainer
-   - `fixed_capacity_traits<T>`: Extract element_type and max_size
+**Key Abstractions:**
 
-3. **Memory Map Traits** (`core/traits/memory_map.hpp`):
-   - `is_variable_length_field<T>`: Needs runtime length tracking?
-   - `variable_length_element_size<T>`: Element size for dynamic sizing
-   - `variable_length_max_elements<T>`: Maximum element count
+1. **SerializableContainer Concept**: Defines the interface all serializable containers must satisfy
+   ```cpp
+   template<typename T>
+   concept SerializableContainer = requires(T& container, const T& const_container) {
+       typename T::value_type;
+       { const_container.size() } -> std::convertible_to<std::size_t>;
+       { const_container.capacity() } -> std::convertible_to<std::size_t>;
+       { const_container.data() } -> std::convertible_to<const typename T::value_type*>;
+       { container.data_unsafe() } -> std::convertible_to<typename T::value_type*>;
+       { container.set_size_unsafe(std::size_t{}) } -> std::same_as<void>;
+       { T::max_size } -> std::convertible_to<std::size_t>;
+   };
+   ```
 
-**Current Issue**: Container registration is spread across 3 files. Goal: consolidate into single registration point.
+2. **serialization_view_provider<T>**: Returns memory spans for serialization
+   - **Default**: Single contiguous span for linear containers (fixed_vector, fixed_string)
+   - **RingBuffer specialization**: 1-2 spans depending on wrap-around state
+   - **Key field**: `span_count` distinguishes circular (2) from linear (1)
+
+3. **Legacy Trait Layers** (still present for backward compatibility):
+   - **Container Detection** (`traits/container_detection.hpp`): Basic type identification
+   - **Container Traits** (`containers/container_traits.hpp`): Categorization
+   - **Memory Map Traits** (`core/traits/memory_map.hpp`): Schema generation
+
+**Architecture Evolution**: Previously spread across 3 files, now unified via `serialization_view_provider<T>` in `container_registration.hpp`. Legacy traits delegate to this system.
 
 ### Serialization Flow
 
@@ -69,8 +82,35 @@ auto restored = deserialize<Message>(buffer.view());
 // 1. HybridMemoryMap<Message> analyzes layout at compile time
 // 2. Generates block execution plan (fixed → dynamic → runtime_offset)
 // 3. Computes max_packed_size for stack buffer allocation
-// 4. serialize_to_unified() executes block plan with memcpy operations
+// 4. serialize_to_unified() executes block plan:
+//    - For Dynamic blocks: Calls get_serialization_spans() to get memory views
+//    - RingBuffer may return 2 spans (wrap-around), others return 1 span
+//    - Each span serialized via memcpy (zero container-specific branches)
 // 5. Returns static_buffer<max_packed_size> with actual size
+```
+
+### Generic Span-Based Approach
+
+**Key Insight**: All containers serialize as 1-2 memory spans, eliminating type-specific code paths.
+
+```cpp
+// Serialization (generic for ALL containers)
+auto spans = get_serialization_spans(container);  // Returns std::array<std::span, 2>
+std::memcpy(dest, &len, 4);  // Length prefix
+dest += 4;
+for (const auto& span : spans) {
+    if (span.empty()) continue;
+    std::memcpy(dest, span.data(), span.size_bytes());
+    dest += span.size_bytes();
+}
+
+// RingBuffer example (wrap-around case):
+// spans[0] = {data_[tail_], data_[capacity_]}  // Tail to end
+// spans[1] = {data_[0], data_[head_]}          // Start to head
+
+// fixed_vector example (contiguous):
+// spans[0] = {data_[0], data_[size_]}          // All elements
+// spans[1] = {}                                 // Empty
 ```
 
 ## Code Style & Conventions
@@ -424,10 +464,9 @@ BENCHMARK("serialize Player (20 bytes)") {
 
 ### Adding a New Container Type
 
-**Current State**: Registration spread across 3 files (container_detection.hpp, container_traits.hpp, memory_map.hpp)  
-**Target State**: Single registration point (TBD - pending simplification)
+**✅ Single Registration Point Achieved**: `containers/container_registration.hpp`
 
-**Current Process (to be simplified):**
+**Minimal Registration Process:**
 
 1. **Implement container** (`containers/my_container.hpp`):
 ```cpp
@@ -439,7 +478,7 @@ public:
     
     constexpr std::size_t size() const { return size_; }
     constexpr std::size_t capacity() const { return N; }
-    const T* data() const { return data_.data(); }
+    const T* data() const { return data_.data(); }  // Required by SerializableContainer
     
     // For serialization support:
     T* data_unsafe() { return data_.data(); }  // Direct access
@@ -451,58 +490,39 @@ private:
 };
 ```
 
-2. **Register in container_detection.hpp**:
+2. **Add serialization view provider** in `container_registration.hpp`:
 ```cpp
-#include "../containers/my_container.hpp"
+// Default case: Single contiguous span (works for most containers)
+// No specialization needed if container data is contiguous!
 
+// Only specialize if container has non-contiguous memory (like RingBuffer):
 template<typename T, std::size_t N>
-struct is_fixed_container_impl<MyContainer<T, N>> : std::true_type {};
-
-template<typename T, std::size_t N>
-struct fixed_container_capacity<MyContainer<T, N>> {
-    static constexpr std::size_t value = N;
-};
-
-template<typename T, std::size_t N>
-struct fixed_container_element_size<MyContainer<T, N>> {
-    static constexpr std::size_t value = sizeof(T);
+struct serialization_view_provider<MyContainer<T, N>> {
+    static constexpr std::size_t span_count = 1;  // Or 2 for circular
+    
+    static auto get_spans(const MyContainer<T, N>& container) {
+        std::array<std::span<const T>, 2> result{};
+        result[0] = std::span{container.data(), container.size()};
+        return result;
+    }
 };
 ```
 
-3. **Register in container_traits.hpp**:
+3. **Add container type name** in `container_detection.hpp`:
 ```cpp
-#include "my_container.hpp"
-
 template<typename T, std::size_t N>
-struct is_fixed_capacity<MyContainer<T, N>> : std::true_type {};
-
-template<typename T, std::size_t N>
-struct fixed_capacity_traits<MyContainer<T, N>> {
-    using element_type = T;
-    static constexpr std::size_t max_size = N;
-};
-
-template<typename T, std::size_t N>
-struct container_category<MyContainer<T, N>> {
-    static constexpr ContainerCategory value = ContainerCategory::FixedCapacity;
+struct container_type_name<sertial::MyContainer<T, N>> {
+    static constexpr std::string_view value = "my_container";
 };
 ```
 
-4. **Register in memory_map.hpp**:
-```cpp
-template<typename T, std::size_t N>
-struct is_variable_length_field<MyContainer<T, N>> : std::true_type {};
+**That's it!** The system automatically:
+- Detects it via `SerializableContainer` concept
+- Computes max_packed_size from `max_size` and `sizeof(T)`
+- Generates schema metadata
+- Handles serialization/deserialization via span-based approach
 
-template<typename T, std::size_t N>
-struct variable_length_element_size<MyContainer<T, N>> {
-    static constexpr std::size_t value = sizeof(T);
-};
-
-template<typename T, std::size_t N>
-struct variable_length_max_elements<MyContainer<T, N>> {
-    static constexpr std::size_t value = N;
-};
-```
+**Legacy traits auto-populated** - no manual specialization needed.
 
 ### Using Bounded Containers in Structs
 
@@ -559,10 +579,14 @@ static_assert(HMM::max_packed_size == 16 + 4 + 400 + 4 + 64);  // Worst case
   fixed_string<256> name = "Player1";
   ```
 
-- **`RingBuffer<T, N>`**: Circular history (in development)
+- **`RingBuffer<T, N>`**: Circular history with FIFO overflow
   ```cpp
   RingBuffer<Message, 100> history;
   history.push_back(msg);  // Overwrites oldest when full
+  
+  // Serialization: Only current size() elements, not full capacity
+  // Wrap-around: Automatically handled via 1-2 span serialization
+  // Schema: Shows overflow_behavior="fifo_overwrite"
   ```
 
 **Avoid in real-time code:**
