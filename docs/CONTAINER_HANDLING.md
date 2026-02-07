@@ -65,7 +65,7 @@ T[N]                   // C-style array
 
 ## Container Detection System
 
-### ✅ Concept-Based Registration (Phase 2 Complete)
+### Concept-Based Registration (Phase 2 Complete)
 
 **Single Registration Point**: `containers/container_registration.hpp`
 
@@ -123,19 +123,19 @@ inline constexpr std::size_t container_element_size_v = container_metadata<T>::e
 // Immediately works in structs:
 struct Message {
     uint32_t id;
-    MyContainer<float, 100> data;  // ✅ Serializable
+    MyContainer<float, 100> data;  // Serializable
     uint64_t timestamp;
 };
 
 // Compile-time analysis works:
-using HMM = HybridMemoryMap<Message>;
+using HMM = StructLayout<Message>;
 static_assert(HMM::has_variable_fields);
 static_assert(HMM::max_packed_size == 4 + 4 + 100*4 + 8);  // id + length + data + timestamp
 
 // Serialization works:
 Message msg{42, {1.0f, 2.0f, 3.0f}, 1234567890};
-auto buffer = serialize(msg);  // ✅ Just works
-auto restored = deserialize<Message>(buffer.view());  // ✅ Just works
+auto buffer = serialize(msg);  // Just works
+auto restored = deserialize<Message>(buffer.view());  // Just works
 ```
 
 ### Common Mistakes and Solutions
@@ -143,10 +143,10 @@ auto restored = deserialize<Message>(buffer.view());  // ✅ Just works
 #### Mistake 1: Using `max_size` instead of `max_size_v`
 
 ```cpp
-// ❌ WRONG - concept expects max_size_v
+// WRONG - concept expects max_size_v
 static constexpr std::size_t max_size = N;
 
-// ✅ CORRECT - note the _v suffix
+// CORRECT - note the _v suffix
 static constexpr std::size_t max_size_v = N;
 ```
 
@@ -155,10 +155,10 @@ static constexpr std::size_t max_size_v = N;
 #### Mistake 2: Missing `data_unsafe()` or `set_size_unsafe()`
 
 ```cpp
-// ❌ WRONG - only const data()
+// WRONG - only const data()
 const T* data() const;
 
-// ✅ CORRECT - also provide mutable access for deserialization
+// CORRECT - also provide mutable access for deserialization
 const T* data() const;
 T* data_unsafe();  // Mutable access
 void set_size_unsafe(std::size_t n);  // Direct size setter
@@ -193,7 +193,7 @@ static_assert(requires(T c) { c.set_size_unsafe(0); });  // Has set_size_unsafe(
 The concept **automatically rejects nested containers**:
 
 ```cpp
-// ✅ Compile-time rejection of nested containers
+// Compile-time rejection of nested containers
 static_assert(SerializableContainer<fixed_vector<int, 10>>);  // PASS
 static_assert(!SerializableContainer<fixed_vector<fixed_vector<int, 5>, 10>>);  // Should PASS (rejected)
 ```
@@ -207,7 +207,7 @@ static_assert(!SerializableContainer<fixed_vector<fixed_vector<int, 5>, 10>>);  
 RingBuffer is **intentionally excluded** from the concept system:
 
 ```cpp
-// ❌ RingBuffer does NOT satisfy SerializableContainer
+// RingBuffer does NOT satisfy SerializableContainer
 static_assert(!SerializableContainer<RingBuffer<float, 100>>);
 ```
 
@@ -218,40 +218,13 @@ static_assert(!SerializableContainer<RingBuffer<float, 100>>);
 These satisfy the concept requirements but are **unbounded** (heap-allocated):
 
 ```cpp
-// ✅ Satisfies concept (has value_type, size(), data(), etc.)
-// ⚠️ But breaks real-time guarantees (heap allocation)
+// Satisfies concept (has value_type, size(), data(), etc.)
+// But breaks real-time guarantees (heap allocation)
 std::vector<int> vec;
 std::string str;
 ```
 
 **Recommendation**: Use `fixed_vector<T, N>` and `fixed_string<N>` for real-time code
-
-### Legacy Trait System (Backward Compatibility)
-
-The original 3-layer trait system is now **implemented as wrappers** around the concept:
-
-**Layer 1: `traits/container_detection.hpp`** (backward compatibility)
-```cpp
-// Now delegates to SerializableContainer concept
-template<typename T>
-struct is_fixed_container_impl : std::bool_constant<SerializableContainer<T>> {};
-```
-
-**Layer 2: `containers/container_traits.hpp`** (backward compatibility)
-```cpp
-// Now uses concept-based detection
-template<typename T>
-struct is_fixed_capacity : std::bool_constant<SerializableContainer<T>> {};
-```
-
-**Layer 3: `core/traits/memory_map.hpp`** (backward compatibility)
-```cpp
-// Now detects via concept
-template<SerializableContainer T>
-struct is_variable_length_field<T> : std::true_type {};
-```
-
-**Result**: Old code using `is_fixed_container_v<T>` still works, but internally uses the new concept system.
 
 ## Adding a New Container Type
 
@@ -306,11 +279,11 @@ static_assert(SerializableContainer<MyContainer<int, 10>>,
 ### Step 3: Test
 
 That's it! The concept system automatically:
-- ✅ Detects your container as fixed-capacity
-- ✅ Extracts element_type, max_size, element_size
-- ✅ Enables serialization/deserialization
-- ✅ Computes correct buffer sizes
-- ✅ Generates schema information
+- Detects your container as fixed-capacity
+- Extracts element_type, max_size, element_size
+- Enables serialization/deserialization
+- Computes correct buffer sizes
+- Generates schema information
 
 ```cpp
 // Immediate
@@ -351,7 +324,7 @@ fixed_vector<float, 100> vec = {1.0f, 2.0f, 3.0f};
 **Warning:**
 ```cpp
 struct Message {
-    std::vector<int> data;  // ⚠️ Unbounded!
+    std::vector<int> data;  // Unbounded!
 };
 
 // Cannot compute max_packed_size at compile time
@@ -362,7 +335,7 @@ struct Message {
 **Alternative (Real-Time Safe):**
 ```cpp
 struct Message {
-    fixed_vector<int, 1000> data;  // ✓ Bounded
+    fixed_vector<int, 1000> data;  // Bounded
 };
 
 // max_packed_size = 4 + 1000*4 = 4004 bytes (compile-time known)
@@ -494,7 +467,7 @@ struct SensorData {
 };
 
 // Size analysis:
-using HMM = HybridMemoryMap<SensorData>;
+using HMM = StructLayout<SensorData>;
 
 // Base size (fixed fields):
 static_assert(HMM::base_packed_size == 8 + 4 + 8);  // 20 bytes
@@ -513,7 +486,7 @@ std::size_t runtime_size(const SensorData& data) {
 ```cpp
 template<typename T>
 struct message_size_bounds {
-    using HMM = HybridMemoryMap<T>;
+    using HMM = StructLayout<T>;
     
     // Minimum: all containers empty
     static constexpr std::size_t min_size = []() constexpr {
@@ -651,8 +624,8 @@ max_size = 4 + 10 * sizeof(PaddedElement)
 ```
 
 **Important**: The padding **IS serialized** as part of each element. This is:
-- ✅ **Correct** - matches C++ memory layout
-- ✅ **Fast** - simple memcpy, no element-by-element recursion
+- **Correct** - matches C++ memory layout
+- **Fast** - simple memcpy, no element-by-element recursion
 - ✅ **Safe** - padding bytes don't affect deserialization (just occupy space)
 - ⚠️ **Slightly wasteful** - padding bytes transmitted (but unavoidable with memcpy approach)
 - ⚠️ **Architecture-dependent** - padding varies by platform (see portability warning below)
@@ -674,7 +647,7 @@ PaddedElement array[3];
 
 **Result**: When we `memcpy(field.data(), size * sizeof(T))`, we get tightly packed elements (each with its internal padding, but no gaps between).
 
-### ⚠️ Cross-Architecture Portability Warning
+### Cross-Architecture Portability Warning
 
 **Current serialization is ARCHITECTURE-DEPENDENT:**
 
@@ -713,7 +686,7 @@ struct Data {
 **For struct "inheritance" or composition**, use `rfl::Flatten` to avoid nested struct overhead:
 
 ```cpp
-// ❌ DON'T: Nested struct (extra padding possible)
+// DON'T: Nested struct (extra padding possible)
 struct Base {
     uint32_t id;
 };
@@ -723,7 +696,7 @@ struct Derived {
     float value;    // Offset depends on Base alignment
 };
 
-// ✅ DO: Flatten fields into parent
+// DO: Flatten fields into parent
 struct Base {
     uint32_t id;
 };
@@ -773,7 +746,7 @@ struct Employee {
 **Not currently supported:**
 
 ```cpp
-// ❌ CURRENTLY NOT SUPPORTED
+// CURRENTLY NOT SUPPORTED
 struct Matrix {
     fixed_vector<fixed_vector<float, 5>, 10> data;  // Nested containers
 };
@@ -807,25 +780,25 @@ struct Matrix {
 ### When to Use Each Container
 
 ```cpp
-// ✅ Real-time systems: Use fixed-capacity containers
+// Real-time systems: Use fixed-capacity containers
 struct RTMessage {
     fixed_vector<Sample, 1000> samples;  // Bounded, no allocation
     fixed_string<256> label;             // Bounded, no allocation
 };
 
-// ❌ Real-time systems: Avoid unbounded containers
+// Real-time systems: Avoid unbounded containers
 struct BadRTMessage {
     std::vector<Sample> samples;  // Heap allocation, unbounded
     std::string label;            // Heap allocation, unbounded
 };
 
-// ✅ Non-real-time: Unbounded containers acceptable
+// Non-real-time: Unbounded containers acceptable
 struct OfflineMessage {
     std::vector<Record> records;  // OK for offline processing
     std::string description;      // OK for offline processing
 };
 
-// ✅ Fixed-size arrays: No length tracking needed
+// Fixed-size arrays: No length tracking needed
 struct Config {
     std::array<float, 16> matrix;  // Always 16 elements
     uint8_t version;
@@ -923,4 +896,4 @@ Python viewers (CLI and GUI) should display:
 - Hex dump of length prefix + data
 - Memory layout visualization
 
-**Implementation**: Extract from `HybridMemoryMap<T>` compile-time information via `get_schema()` → JSON → Python visualization.
+**Implementation**: Extract from `StructLayout<T>` compile-time information via `get_schema()` → JSON → Python visualization.

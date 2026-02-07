@@ -244,7 +244,7 @@ Count=100: 1236B
 Count=256: 3108B
 ```
 
-✓ All calculations match expected values!
+All calculations match expected values!
 
 ## Future Enhancements
 

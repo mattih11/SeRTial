@@ -30,12 +30,12 @@ python3 -m http.server 8080
 
 ## Features
 
-- 🎨 **Interactive Visualization**: See struct layout, serialized layout, and operations
-- 📊 **Variable Field Controls**: Adjust runtime sizes with sliders
-- 🎬 **Animation**: Watch how packed size changes with different field sizes
-- 🔦 **Hover Highlighting**: Hover over fields, memory regions, or operations to see connections
-- 📂 **Collapsible Sections**: Fold/unfold different visualizations
-- 🎯 **Multi-field Blocks**: Hover over copy operations shows all affected fields
+- **Interactive Visualization**: See struct layout, serialized layout, and operations
+- **Variable Field Controls**: Adjust runtime sizes with sliders
+- **Animation**: Watch how packed size changes with different field sizes
+- **Hover Highlighting**: Hover over fields, memory regions, or operations to see connections
+- **Collapsible Sections**: Fold/unfold different visualizations
+- **Multi-field Blocks**: Hover over copy operations shows all affected fields
 
 ## Embedding in GitHub README
 
@@ -55,7 +55,7 @@ GitHub Markdown doesn't support `<iframe>` for security reasons, but you can:
 
 1. **Link to viewer**:
    ```markdown
-   [📊 Interactive Schema Viewer](./tools/sertial-inspect/viewer.html?schema=./build/my_schemas.json)
+   [Interactive Schema Viewer](./tools/sertial-inspect/viewer.html?schema=./build/my_schemas.json)
    ```
 
 2. **Use GitHub Actions** to generate static images/SVGs from the viewer

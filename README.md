@@ -27,14 +27,14 @@ You should have received a copy of the GNU General Public License along with thi
 
 ## Current Status
 
-### ✅ Phase 1: Core Functionality (Complete)
+### Phase 1: Core Functionality (Complete)
 - Fixed-size struct serialization with automatic padding elimination
 - Variable-size field support (fixed_vector, fixed_string, RingBuffer)
 - StructLayout<T> as single source of truth for type analysis
 - Block-based serialization with symmetric operations
 - Comprehensive documentation and test coverage
 
-### ✅ Phase 2: Concept-Based Container Registration (Complete)
+### Phase 2: Concept-Based Container Registration (Complete)
 - **C++20 Concepts**: `SerializableContainer` concept for automatic container detection
 - **Single Registration Point**: New containers work immediately by satisfying the concept interface
 - **Zero Duplication**: Eliminated 9+ manual trait specializations per container type
@@ -43,7 +43,7 @@ You should have received a copy of the GNU General Public License along with thi
 
 **See**: `docs/TEMPLATE_PATTERNS.md` for metaprogramming patterns and `docs/CONTAINER_HANDLING.md` for container integration guide.
 
-### ✅ Phase 3: Generic Span-Based Serialization (Complete)
+### Phase 3: Generic Span-Based Serialization (Complete)
 - **RingBuffer Serialization**: Full wrap-around handling with automatic span decomposition
 - **Generic Architecture**: Zero container-specific branches via `serialization_view_provider<T>`
 - **Schema Transparency**: Complete metadata export at field and block levels
@@ -54,7 +54,7 @@ You should have received a copy of the GNU General Public License along with thi
 
 **Key Achievement**: RingBuffer returns 1-2 spans based on wrap-around state, fixed_vector returns 1 span (contiguous). Schema shows exactly how many memcpy operations each container needs.
 
-### ✅ Phase 4: Reflector-Based Schema Export (Complete)
+### Phase 4: Reflector-Based Schema Export (Complete)
 - **Zero-Boilerplate Introspection**: Compile-time metadata automatically exposed via `rfl::Reflector`
 - **Container Reflectors**: `fixed_vector`, `fixed_string`, `RingBuffer` teach reflect-cpp how to generate schemas
 - **StructLayout Reflector**: Single source exports all metadata (20+ fields) with one line: `rfl::json::to_schema<StructLayout<T>>()`
@@ -65,7 +65,7 @@ You should have received a copy of the GNU General Public License along with thi
 
 **See**: `docs/REFLECTOR_BASED_SCHEMA.md` for the complete architecture and design rationale.
 
-### 📋 Future Work (Phase 5+)
+### Future Work (Phase 5+)
 - Cross-platform serialization (endianness handling, portable padding)
 - Nested container support (fixed_vector<fixed_vector<T, M>, N>)
 - Performance profiling tools
@@ -188,15 +188,15 @@ make run_tests
 
 SeRTial includes a web-based interactive schema viewer for visualizing your message structures:
 
-**[🔍 Launch Interactive Viewer](https://mattih11.github.io/SeRTial/tools/sertial-inspect/viewer.html?schema=https://raw.githubusercontent.com/mattih11/SeRTial/main/examples/schemas/example_schemas.json)**
+**[Launch Interactive Viewer](https://mattih11.github.io/SeRTial/tools/sertial-inspect/viewer.html?schema=https://raw.githubusercontent.com/mattih11/SeRTial/main/examples/schemas/example_schemas.json)**
 
 ### Features
-- 🎨 **Visual Memory Layouts**: See struct vs. serialized layout side-by-side
-- 📊 **Variable Field Controls**: Interactive sliders to adjust runtime sizes
-- 🎬 **Animation Mode**: Watch how packed size changes dynamically
-- 🔦 **Hover Highlighting**: Highlight fields across table, layouts, and operations
-- 📂 **Collapsible Sections**: Fold/unfold different visualizations
-- 🎯 **Block Operations**: See exact memcpy operations for serialize/deserialize
+- **Visual Memory Layouts**: See struct vs. serialized layout side-by-side
+- **Variable Field Controls**: Interactive sliders to adjust runtime sizes
+- **Animation Mode**: Watch how packed size changes dynamically
+- **Hover Highlighting**: Highlight fields across table, layouts, and operations
+- **Collapsible Sections**: Fold/unfold different visualizations
+- **Block Operations**: See exact memcpy operations for serialize/deserialize
 
 ### Usage
 
@@ -542,23 +542,23 @@ SeRTial/
 │   ├── core/
 │   │   ├── concepts.hpp         # C++20 concepts for type constraints
 │   │   ├── endian.hpp           # Endianness conversion utilities
-│   │   ├── size_computation.hpp # Compile-time size calculation
-│   │   ├── traits.hpp           # Type trait aggregations
-│   │   └── traits/
-│   │       ├── hybrid_memory_map.hpp  # Block-based layout for variable-size types
-│   │       ├── memory_map.hpp         # Memory layout analysis for fixed types
-│   │       └── type_traits.hpp        # Core type categorization
+│   │   │   ├── traits.hpp           # Type trait aggregations
+│   │   └── layout/
+│   │       └── struct_layout.hpp    # Compile-time type analysis (single source of truth)
 │   ├── containers/
+│   │   ├── container_registration.hpp  # SerializableContainer concept
 │   │   ├── fixed_string.hpp     # Bounded string (stack-allocated)
 │   │   ├── fixed_vector.hpp     # Bounded vector (stack-allocated)
-│   │   └── static_buffer.hpp    # Stack-allocated byte buffers
+│   │   ├── ring_buffer.hpp      # Circular buffer (FIFO)
+│   │   ├── static_buffer.hpp    # Stack-allocated byte buffers
+│   │   └── reflectors.hpp       # Container reflection for schema export
 │   ├── io/
-│   │   └── unified_binary.hpp   # Unified serialization (fixed + variable)
+│   │   └── unified_binary.hpp   # Block-based serialization
 │   ├── integration/
 │   │   ├── runtime_test.hpp     # Round-trip testing framework
-│   │   └── schema_generator.hpp # JSON schema generation
+│   │   └── schema_export.hpp    # JSON schema generation (reflector-based)
 │   ├── traits/
-│   │   └── container_detection.hpp  # Container trait detection
+│   │   └── container_detection.hpp  # Container type name mapping
 │   └── debug/
 │       └── print_utils.hpp      # Debug output utilities
 ├── src/
@@ -580,9 +580,7 @@ SeRTial/
 ├── test/
 │   ├── test_foundation.cpp      # Container and traits tests
 │   ├── test_serialization.cpp   # High-level API tests
-│   ├── test_padding.cpp         # Padding analysis tests
-│   ├── test_endianness.cpp      # Endianness conversion tests
-│   └── test_hybrid_binary.cpp   # Block-based serialization and variable-size tests
+│   └── test_hybrid_binary.cpp   # Block-based serialization tests
 └── tools/
     └── sertial-inspect/
         ├── viewer.html          # Interactive browser-based viewer
@@ -856,7 +854,7 @@ static_assert(SerializableContainer<MyContainer<int, 10>>,
 
 // Use immediately in structs
 struct Message {
-    MyContainer<float, 100> data;  // ✅ Works automatically
+    MyContainer<float, 100> data;  // Works automatically
 };
 ```
 
@@ -877,100 +875,6 @@ Typical performance (example on modern x86-64):
 - Serialize: ~10-15 ns/op for small structs
 - Deserialize: ~50-100 ns/op
 - Throughput: 50-100 million messages/second
-
-## C++ Insights - Understanding the Generated Code
-
-SeRTial heavily relies on C++20 templates and compile-time computation. Use [C++ Insights (cppinsights.io)](https://cppinsights.io/) to see how templates are instantiated and what code the compiler actually generates.
-
-### Input Code
-
-```cpp
-#include <cstdint>
-#include <array>
-#include <cstring>
-
-template<typename T>
-struct MemoryMap {
-    static constexpr std::size_t packed_size = sizeof(T);
-};
-
-template<typename T>
-auto serialize(const T& value) {
-    std::array<std::byte, MemoryMap<T>::packed_size> buffer;
-    std::memcpy(buffer.data(), &value, sizeof(T));
-    return buffer;
-}
-
-struct Point { float x, y, z; };
-
-int main() {
-    Point p{1.0f, 2.0f, 3.0f};
-    auto data = serialize(p);
-}
-```
-
-### C++ Insights Output
-
-When you paste the above into [cppinsights.io](https://cppinsights.io/), it shows the fully instantiated code:
-
-```cpp
-template<typename T>
-struct MemoryMap {
-    static constexpr std::size_t packed_size = sizeof(T);
-};
-
-/* First instantiated from: insights.cpp:21 */
-#ifdef INSIGHTS_USE_TEMPLATE
-template<>
-struct MemoryMap<Point>
-{
-    static constexpr std::size_t packed_size = 12;   // <-- sizeof(Point) resolved!
-};
-#endif
-
-template<typename T>
-auto serialize(const T & value)
-{
-    std::array<std::byte, MemoryMap<T>::packed_size> buffer;
-    std::memcpy(buffer.data(), &value, sizeof(T));
-    return buffer;
-}
-
-/* First instantiated from: insights.cpp:21 */
-#ifdef INSIGHTS_USE_TEMPLATE
-template<>
-std::array<std::byte, 12> serialize<Point>(const Point & value)
-//         ^^^^^^^^^^^^ -- Template resolved to concrete array size!
-{
-    std::array<std::byte, 12> buffer;
-    std::memcpy(buffer.data(), &value, 12UL);  // <-- sizeof resolved to 12
-    return buffer;
-}
-#endif
-
-struct Point {
-    float x;
-    float y;
-    float z;
-};
-
-int main()
-{
-    Point p = {1.0F, 2.0F, 3.0F};
-    std::array<std::byte, 12> data = serialize(p);
-    //         ^^^^^^^^^^^^ -- auto deduced to std::array<std::byte, 12>
-    return 0;
-}
-```
-
-### What This Shows
-
-1. **`MemoryMap<Point>::packed_size`** is resolved to the literal `12` at compile-time
-2. **`serialize<Point>`** returns `std::array<std::byte, 12>` - no dynamic allocation
-3. **`auto data`** is deduced to the concrete type `std::array<std::byte, 12>`
-4. **`memcpy`** size argument becomes the literal `12UL`
-
-This demonstrates SeRTial's zero-overhead principle: all template machinery disappears, leaving only concrete types and direct memory operations.
 
 ## Contributing
 

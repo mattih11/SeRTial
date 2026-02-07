@@ -6,16 +6,16 @@ Create a unified memory map that handles both fixed and variable-size fields wit
 ## Current State Analysis
 
 ### What We Have (MemoryMap<T>)
-- ✅ Compile-time field offsets and sizes
-- ✅ Packed offsets (removes padding)
-- ✅ MemcpyRegion detection for consecutive fixed fields
-- ✅ Single memcpy optimization when no padding
+- Compile-time field offsets and sizes
+- Packed offsets (removes padding)
+- MemcpyRegion detection for consecutive fixed fields
+- Single memcpy optimization when no padding
 
 ### What's Missing
-- ❌ Variable-field aware region splitting
-- ❌ Runtime offset calculation for post-variable regions
-- ❌ Dynamic size calculation per variable field
-- ❌ Proper block sequencing (Fixed → Dynamic → Fixed with runtime offset)
+- Variable-field aware region splitting
+- Runtime offset calculation for post-variable regions
+- Dynamic size calculation per variable field
+- Proper block sequencing (Fixed → Dynamic → Fixed with runtime offset)
 
 ## Memory Layout Example
 
@@ -238,25 +238,25 @@ std::size_t serialize_hybrid(const T& value, std::byte* dest) {
 ## Implementation Steps
 
 ### Phase 1: Core Infrastructure (Current Task)
-1. ✅ Create block type definitions (FixedBlock, DynamicBlock, RuntimeOffsetBlock)
-2. ✅ Create BlockDescriptor with execution order
-3. ✅ Implement build_blocks() algorithm
-4. ✅ Store blocks in HybridMemoryMap
+1. Create block type definitions (FixedBlock, DynamicBlock, RuntimeOffsetBlock)
+2. Create BlockDescriptor with execution order
+3. Implement build_blocks() algorithm
+4. Store blocks in HybridMemoryMap
 
 ### Phase 2: Field Iteration (Next)
-5. ⏳ Create visit_field<Index> helper for runtime field access
-6. ⏳ Implement dynamic size calculation per field
-7. ⏳ Create total packed size calculator
+5. TODO: Create visit_field<Index> helper for runtime field access
+6. TODO: Implement dynamic size calculation per field
+7. TODO: Create total packed size calculator
 
 ### Phase 3: Serialization (After Phase 2)
-8. ⏳ Implement hybrid serialize with execution order
-9. ⏳ Implement hybrid deserialize with length prefix reading
-10. ⏳ Add endianness support for dynamic blocks
+8. TODO: Implement hybrid serialize with execution order
+9. TODO: Implement hybrid deserialize with length prefix reading
+10. TODO: Add endianness support for dynamic blocks
 
 ### Phase 4: Integration & Testing
-11. ⏳ Update existing APIs to use HybridMemoryMap
-12. ⏳ Test with various struct combinations
-13. ⏳ Benchmark against current implementation
+11. TODO: Update existing APIs to use HybridMemoryMap
+12. TODO: Test with various struct combinations
+13. TODO: Benchmark against current implementation
 
 ## Key Design Decisions
 

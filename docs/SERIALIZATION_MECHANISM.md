@@ -6,7 +6,7 @@ SeRTial uses a **unified block-based serialization system** that handles both fi
 
 ## Core Components
 
-### 1. HybridMemoryMap<T>
+### 1. StructLayout<T>
 **Purpose**: Single source of truth for serialization layout  
 **Analysis**: Compile-time struct introspection  
 **Output**: Block execution plan
@@ -146,7 +146,7 @@ struct HybridLayoutBuilder {
 ```cpp
 template<typename T>
 std::size_t serialize_to_unified(const T& value, std::byte* dest) {
-    using HMM = HybridMemoryMap<T>;
+    using HMM = StructLayout<T>;
     
     const auto* src = reinterpret_cast<const std::byte*>(&value);
     std::size_t current_offset = 0;
@@ -211,7 +211,7 @@ Maximum possible serialized size (all containers at capacity):
 
 ```cpp
 template<typename T>
-struct HybridMemoryMap {
+struct StructLayout {
     static constexpr std::size_t max_packed_size = []() constexpr {
         std::size_t size = base_packed_size;  // Fixed + RuntimeOffset blocks
         
@@ -297,26 +297,26 @@ std::optional<T> deserialize(std::span<const std::byte> data);
 
 // Works with:
 static_buffer<1024> buf;
-deserialize<T>(buf.view());                    // ✓
+deserialize<T>(buf.view());                    // Works
 
 std::array<std::byte, 100> arr;
-deserialize<T>(std::span{arr});                // ✓
+deserialize<T>(std::span{arr});                // Works
 
 std::vector<std::byte> vec;
-deserialize<T>(std::span{vec});                // ✓
+deserialize<T>(std::span{vec});                // Works
 
 uint8_t* raw_ptr;
-deserialize<T>(std::span{raw_ptr, size});      // ✓
+deserialize<T>(std::span{raw_ptr, size});      // Works
 ```
 
 ### Why std::span?
 
 ```cpp
-// ❌ BAD: Copy-heavy API
+// BAD: Copy-heavy API
 std::vector<std::byte> serialize(const T& obj);     // Copies data
 void deserialize(const std::vector<std::byte>& v);  // Requires specific container
 
-// ✅ GOOD: Zero-copy API
+// GOOD: Zero-copy API
 static_buffer<N> serialize(const T& obj);           // Stack-allocated
     └─> .view() returns std::span                   // Zero-copy view
 
@@ -380,22 +380,22 @@ struct Header {
 ## Performance Characteristics
 
 ### Compile-Time Work
-- ✓ Field layout analysis (offsets, sizes, alignments)
-- ✓ Container detection (which fields are variable-length)
-- ✓ Block generation (FixedBlock, DynamicBlock, RuntimeOffsetBlock)
-- ✓ Max size computation (worst-case buffer allocation)
-- ✓ Padding detection (which bytes to skip)
+- Field layout analysis (offsets, sizes, alignments)
+- Container detection (which fields are variable-length)
+- Block generation (FixedBlock, DynamicBlock, RuntimeOffsetBlock)
+- Max size computation (worst-case buffer allocation)
+- Padding detection (which bytes to skip)
 
 ### Runtime Work
-- ✓ Block execution (memcpy + length prefix writes)
-- ✓ Container size queries (`.size()` calls)
-- ✓ Offset calculation (for RuntimeOffset blocks)
+- Block execution (memcpy + length prefix writes)
+- Container size queries (`.size()` calls)
+- Offset calculation (for RuntimeOffset blocks)
 
 ### Zero Runtime Overhead
-- ✗ No type checking (all compile-time)
-- ✗ No virtual calls (template-based dispatch)
-- ✗ No heap allocation (stack buffers with compile-time sizing)
-- ✗ No dynamic size computation (pre-computed block structure)
+- No type checking (all compile-time)
+- No virtual calls (template-based dispatch)
+- No heap allocation (stack buffers with compile-time sizing)
+- No dynamic size computation (pre-computed block structure)
 
 ### Typical Performance
 ```

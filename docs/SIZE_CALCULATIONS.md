@@ -27,11 +27,11 @@ This document explains how these calculations work, the formulas involved, and p
 ```cpp
 // 1. max_packed_size: Compile-time maximum
 //    Used to allocate static_buffer<N>
-constexpr size_t max_size = HybridMemoryMap<T>::max_packed_size;
+constexpr size_t max_size = StructLayout<T>::max_packed_size;
 
 // 2. base_packed_size: Compile-time fixed overhead
 //    Size of all fixed-size fields + fixed overhead for dynamic fields
-constexpr size_t base_size = HybridMemoryMap<T>::base_packed_size;
+constexpr size_t base_size = StructLayout<T>::base_packed_size;
 
 // 3. calculate_packed_size(obj): Runtime actual size
 //    Computes actual serialized size based on container contents
@@ -137,28 +137,34 @@ base_packed_size = 1 + 4 = 5;  // Padding skipped
 
 ### Implementation
 
-From `hybrid_memory_map.hpp`:
+From `struct_layout.hpp`:
 
 ```cpp
 template<typename T>
-struct HybridMemoryMap {
-    // Compute max size for dynamic fields
-    static constexpr std::size_t compute_max_variable_size() {
-        std::size_t total = 0;
-        constexpr auto element_sizes = get_field_element_sizes();
-        constexpr auto capacities = get_field_capacities();
-        
-        for (std::size_t i = 0; i < num_fields; ++i) {
-            if (field_variable_flags[i]) {
-                // 4 bytes length prefix + capacity * element_size
-                total += sizeof(uint32_t) + (capacities[i] * element_sizes[i]);
-            }
-        }
-        return total;
-    }
+struct StructLayout {
+    // Compile-time field analysis
+    static constexpr std::size_t num_fields = /* ... */;
+    static constexpr auto field_is_variable = /* array of bools */;
+    static constexpr auto element_sizes = /* array of element sizes */;
+    static constexpr auto capacities = /* array of capacities */;
     
-    static constexpr std::size_t base_packed_size = /* Fixed + RuntimeOffset blocks */;
-    static constexpr std::size_t max_packed_size = base_packed_size + compute_max_variable_size();
+    // Block-based layout
+    static constexpr BlockLayout layout = build_blocks();
+    static constexpr std::size_t base_packed_size = layout.base_packed_size;
+    
+    // Max size includes worst-case for all dynamic fields
+    static constexpr std::size_t max_packed_size = []() {
+        std::size_t size = base_packed_size;
+        for (std::size_t i = 0; i < layout.dynamic_count; ++i) {
+            const auto& block = layout.dynamic_blocks[i];
+            // 4 bytes length prefix + capacity * element_size
+            size += sizeof(uint32_t) + (block.capacity * block.element_size);
+        }
+        for (std::size_t i = 0; i < layout.runtime_offset_count; ++i) {
+            size += layout.runtime_offset_blocks[i].size;
+        }
+        return size;
+    }();
 };
 ```
 
@@ -198,7 +204,7 @@ From `unified_binary.hpp`:
 ```cpp
 template<typename T>
 std::size_t calculate_packed_size(const T& obj) {
-    using HMM = HybridMemoryMap<T>;
+    using HMM = StructLayout<T>;
     
     if constexpr (!HMM::has_variable_fields) {
         // No dynamic fields → size is constant
@@ -407,10 +413,10 @@ max_packed_size = 4 + 244 = 248 bytes
 
 ### Where Sizes Are Computed
 
-1. **HybridMemoryMap compile-time constants**:
+1. **StructLayout compile-time constants**:
    ```cpp
    template<typename T>
-   struct HybridMemoryMap {
+   struct StructLayout {
        static constexpr size_t base_packed_size = /* ... */;
        static constexpr size_t max_packed_size = /* ... */;
        static constexpr bool has_variable_fields = /* ... */;
@@ -445,11 +451,11 @@ Convenient access via type traits:
 // Compile-time access
 template<typename T>
 inline constexpr std::size_t max_serialized_size_v = 
-    HybridMemoryMap<T>::max_packed_size;
+    StructLayout<T>::max_packed_size;
 
 template<typename T>
 inline constexpr std::size_t base_serialized_size_v = 
-    HybridMemoryMap<T>::base_packed_size;
+    StructLayout<T>::base_packed_size;
 
 // Usage:
 static_assert(max_serialized_size_v<Player> == 20);
@@ -461,7 +467,7 @@ static_buffer<max_serialized_size_v<SensorData>> buffer;
 ```cpp
 template<typename T>
 std::size_t calculate_packed_size(const T& obj) {
-    using HMM = HybridMemoryMap<T>;
+    using HMM = StructLayout<T>;
     
     // Compile-time check: if no dynamic fields, return constant
     if constexpr (!HMM::has_variable_fields) {
@@ -508,8 +514,8 @@ static_assert(max_serialized_size_v<T> < 10'000'000,
               "Suspiciously large max size");
 
 // Ensure base <= max
-static_assert(HybridMemoryMap<T>::base_packed_size <= 
-              HybridMemoryMap<T>::max_packed_size);
+static_assert(StructLayout<T>::base_packed_size <= 
+              StructLayout<T>::max_packed_size);
 ```
 
 ### Runtime Validation
@@ -517,8 +523,8 @@ static_assert(HybridMemoryMap<T>::base_packed_size <=
 ```cpp
 // After serialization, verify size bounds
 size_t actual = calculate_packed_size(obj);
-assert(actual >= HybridMemoryMap<T>::base_packed_size);
-assert(actual <= HybridMemoryMap<T>::max_packed_size);
+assert(actual >= StructLayout<T>::base_packed_size);
+assert(actual <= StructLayout<T>::max_packed_size);
 ```
 
 ### Test Cases
@@ -556,7 +562,7 @@ TEST_CASE("Size calculations") {
 
 - **Serialization Mechanism**: See `docs/SERIALIZATION_MECHANISM.md` for how sizes are used during serialization
 - **Container Handling**: See `docs/CONTAINER_HANDLING.md` for container-specific size calculations
-- **HybridMemoryMap**: See `include/sertial/core/traits/hybrid_memory_map.hpp` for implementation
+- **StructLayout**: See `include/sertial/core/layout/struct_layout.hpp` for implementation
 
 ---
 

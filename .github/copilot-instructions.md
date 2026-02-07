@@ -4,8 +4,8 @@
 
 **SeRTial** (Serialization for Real-Time) is a C++20 binary serialization library built on compile-time reflection (reflect-cpp). It provides zero-allocation, high-performance message serialization for real-time and embedded systems.
 
-**Current Status**: Production-ready core with fixed containers (fixed_vector, fixed_string, static_buffer, RingBuffer)  
-**Phase 3 Complete**: Generic span-based serialization with full RingBuffer support and schema transparency
+**Current Status**: Production-ready (v2.0.0) with complete reflector-based introspection and interactive viewers  
+**Phase 4 Complete**: Reflector-based schema export, interactive HTML viewer, C++ CLI tool, Python dependencies removed
 
 ### Core Philosophy
 - **Compile-time everything**: Type analysis, size computation, and layout mapping happen at compile time
@@ -18,7 +18,7 @@
 ## Architecture
 
 ### Unified Block-Based Serialization
-SeRTial uses **HybridMemoryMap** to analyze struct layout at compile time and generate an execution plan:
+SeRTial uses **StructLayout<T>** to analyze struct layout at compile time and generate an execution plan:
 
 ```cpp
 struct Message {
@@ -64,12 +64,7 @@ struct Message {
    - **RingBuffer specialization**: 1-2 spans depending on wrap-around state
    - **Key field**: `span_count` distinguishes circular (2) from linear (1)
 
-3. **Legacy Trait Layers** (still present for backward compatibility):
-   - **Container Detection** (`traits/container_detection.hpp`): Basic type identification
-   - **Container Traits** (`containers/container_traits.hpp`): Categorization
-   - **Memory Map Traits** (`core/traits/memory_map.hpp`): Schema generation
-
-**Architecture Evolution**: Previously spread across 3 files, now unified via `serialization_view_provider<T>` in `container_registration.hpp`. Legacy traits delegate to this system.
+**Architecture Evolution**: Previously used multiple trait files, now unified via `serialization_view_provider<T>` in `container_registration.hpp` with concept-based detection.
 
 ### Serialization Flow
 
@@ -79,7 +74,7 @@ auto buffer = serialize(msg);  // Zero heap allocation
 auto restored = deserialize<Message>(buffer.view());
 
 // Behind the scenes:
-// 1. HybridMemoryMap<Message> analyzes layout at compile time
+// 1. StructLayout<Message> analyzes layout at compile time
 // 2. Generates block execution plan (fixed → dynamic → runtime_offset)
 // 3. Computes max_packed_size for stack buffer allocation
 // 4. serialize_to_unified() executes block plan:
@@ -214,29 +209,38 @@ SeRTial/
 │   │   ├── fixed_vector.hpp     # Stack-allocated vector (capacity-bounded)
 │   │   ├── fixed_string.hpp     # Stack-allocated string
 │   │   ├── static_buffer.hpp    # Fixed-capacity byte buffer
-│   │   ├── ring_buffer.hpp      # Circular buffer [NEW - integration pending]
-│   │   └── container_traits.hpp # Container categorization traits
+│   │   ├── ring_buffer.hpp      # Circular buffer
+│   │   └── container_registration.hpp # Single registration point (SerializableContainer)
 │   ├── core/                    # Type analysis engine
 │   │   ├── concepts.hpp         # C++20 concepts
 │   │   ├── endian.hpp           # Endianness handling
 │   │   ├── traits.hpp           # Main traits include
-│   │   └── traits/              # Trait implementation
-│   │       ├── bounded.hpp      # Compile-time max size computation
-│   │       ├── hybrid_memory_map.hpp  # Block-based layout analysis
-│   │       ├── memory_map.hpp   # Field offset/size analysis
-│   │       ├── padding.hpp      # Padding detection
-│   │       ├── size_category.hpp # Static/Dynamic/Trailing categorization
-│   │       └── type_info.hpp    # Comprehensive type traits
+│   │   ├── traits/              # Trait implementation
+│   │   │   ├── bounded.hpp      # Compile-time max size computation
+│   │   │   ├── padding.hpp      # Padding detection
+│   │   │   ├── size_category.hpp # Static/Dynamic/Trailing categorization
+│   │   │   └── type_info.hpp    # Comprehensive type traits
+│   │   └── layout/              # Core layout analysis
+│   │       ├── struct_layout.hpp # Single source of truth for type analysis
+│   │       └── unified_api.hpp   # Unified serialize/deserialize
 │   ├── io/                      # Serialization implementation
-│   │   └── unified_binary.hpp   # Block-based serialize/deserialize
+│   │   └── unified_binary.hpp   # Public serialize/deserialize API
 │   ├── integration/             # External integrations
 │   │   ├── message_collection.hpp # Multi-message schemas
 │   │   ├── runtime_test.hpp     # Serialize/deserialize validation
-│   │   └── schema_generator.hpp # JSON schema export
+│   │   └── schema_generator.hpp # JSON schema export (DEPRECATED - use reflectors)
+│   ├── reflector/               # Reflector-based introspection
+│   │   ├── container_reflectors.hpp # fixed_vector, fixed_string, RingBuffer
+│   │   └── struct_layout_reflector.hpp # StructLayout metadata export
 │   ├── traits/                  # Detection utilities
 │   │   └── container_detection.hpp # Fixed container detection
 │   └── debug/                   # Development tools
 │       └── print_utils.hpp      # Debug output utilities
+├── tools/                       # Visualization and inspection
+│   └── sertial-inspect/         # C++ CLI tool + HTML viewer
+│       ├── main.cpp             # Terminal-based schema viewer
+│       ├── viewer.html          # Interactive HTML viewer
+│       └── README.md            # Viewer documentation
 ├── examples/                    # Usage demonstrations
 │   ├── serialization_example.cpp # Comprehensive API showcase
 │   ├── schema_example.cpp       # Schema generation
@@ -244,11 +248,14 @@ SeRTial/
 ├── test/                        # Unit tests
 │   ├── test_foundation.cpp      # Basic type traits
 │   ├── test_serialization.cpp   # Serialization correctness
-│   ├── test_hybrid_binary.cpp   # HybridMemoryMap validation
-│   └── test_ring_buffer.cpp     # RingBuffer unit tests
-├── scripts/                     # Utilities
-│   ├── visualize_schema.py      # CLI schema viewer
-│   └── visualize_schema_gui.py  # GUI schema viewer
+│   └── test_reflector.cpp       # Reflector validation
+├── docs/                        # Documentation
+│   ├── REFLECTOR_BASED_SCHEMA.md # Phase 4 architecture
+│   ├── SERIALIZATION_MECHANISM.md # How serialization works
+│   ├── CONTAINER_HANDLING.md    # Container integration guide
+│   ├── SIZE_CALCULATIONS.md     # Size computation details
+│   ├── TEMPLATE_PATTERNS.md     # Metaprogramming patterns
+│   └── archive/                 # Historical documentation
 └── CMakeLists.txt              # Build configuration
 ```
 
@@ -352,7 +359,7 @@ constexpr std::size_t compute_max_size() {
 
 ### Block Execution Pattern
 ```cpp
-// HybridMemoryMap generates block execution plan
+// StructLayout generates block execution plan
 for (const auto& descriptor : execution_order) {
     switch (descriptor.type) {
         case BlockType::Fixed:
@@ -547,10 +554,10 @@ SensorData data{
 auto buffer = serialize(data);  // Stack-allocated buffer
 
 // Compile-time size analysis
-using HMM = HybridMemoryMap<SensorData>;
-static_assert(HMM::has_variable_fields);
-static_assert(HMM::base_packed_size == 16);  // timestamp + sensor_id
-static_assert(HMM::max_packed_size == 16 + 4 + 400 + 4 + 64);  // Worst case
+using Layout = StructLayout<SensorData>;
+static_assert(Layout::has_variable_fields);
+static_assert(Layout::base_packed_size == 16);  // timestamp + sensor_id
+static_assert(Layout::max_packed_size == 16 + 4 + 400 + 4 + 64);  // Worst case
 ```
 
 ### Buffer Management
@@ -678,12 +685,12 @@ if (!is_bounded(obj)) {
 
 ## Performance Considerations
 
-### Hot Path Optimization
+**Hot Path Optimization**
 Serialization must be deterministic and fast:
 
 1. **Avoid branching**: Use compile-time dispatch (`if constexpr`)
 2. **Minimize copies**: Use `std::span` for views, not copies
-3. **Batch memcpy**: HybridMemoryMap coalesces consecutive fields
+3. **Batch memcpy**: StructLayout coalesces consecutive fields
 4. **Cache-friendly**: Sequential memory access patterns
 
 ```cpp
@@ -784,7 +791,7 @@ SeRTial maintains strict compatibility with visualization tools:
 
 ```cpp
 // Export uses actual compile-time data structures
-auto schema = HybridMemoryMap<T>::get_schema();
+auto schema = StructLayout<T>::get_schema();
 std::string json = rfl::json::write(schema);  // Direct rfl serialization
 
 // Schema contains exact compile-time information:
@@ -794,18 +801,17 @@ std::string json = rfl::json::write(schema);  // Direct rfl serialization
     "is_variable_length": true,
     "element_size": 4,
     "max_elements": 100,
-    "base_packed_size": 12,      // From HybridMemoryMap
-    "max_packed_size": 412       // From HybridMemoryMap
+    "base_packed_size": 12,      // From StructLayout
+    "max_packed_size": 412       // From StructLayout
 }
 ```
 
 ### Implementation Rule
 
 **All schema-relevant changes must update:**
-1. `schema_generator.hpp` - Add new fields to TypeSchema struct
-2. `visualize_schema.py` - Update CLI rendering
-3. `visualize_schema_gui.py` - Update GUI rendering
-4. **Shared Python module** (future) - Common logic for both viewers
+1. Container reflectors in `reflector/container_reflectors.hpp`
+2. StructLayout reflector in `reflector/struct_layout_reflector.hpp`
+3. Interactive HTML viewer if new visualization features needed
 
 **Never**: Create custom JSON manually - always use `rfl::json::write(schema_struct)`
 
@@ -815,7 +821,7 @@ Before suggesting code:
 1. Is this allocation-free? (No new/malloc/vector in hot paths)
 2. Can this be computed at compile time? (Use constexpr/consteval)
 3. Does this respect type safety? (Concepts/static_assert)
-4. Is error handling deterministic? (std::optional, no exceptions)
+4. Is error handling deterministic? (std::optional, no exceptions in serialization)
 5. Would this cause unnecessary copies? (Use std::span for views)
 6. Is the complexity hidden from users? (Simple API, complex internals)
 7. Does this maintain real-time guarantees? (Bounded execution time)
@@ -823,21 +829,19 @@ Before suggesting code:
 
 ## Current Development Focus
 
-### Active Work: Trait Simplification
-**Problem**: Container registration spread across 3 files makes adding new types tedious  
-**Goal**: Consolidate to single registration point
+### Phase 4 Complete (v2.0.0)
+- Zero-boilerplate schema export via rfl::Reflector
+- Interactive HTML viewer (browser-based, zero dependencies)
+- C++ CLI tool (replaces Python scripts)
+- All Python dependencies removed
+- Unified container registration via SerializableContainer concept
 
-**Affected files:**
-- `traits/container_detection.hpp` (is_fixed_container, capacity, element_size)
-- `containers/container_traits.hpp` (is_fixed_capacity, category, traits)
-- `core/traits/memory_map.hpp` (is_variable_length_field, max_elements)
-
-**Target**: Define traits once, derive rest automatically
-
-### Pending: RingBuffer Integration
-**Challenge**: RingBuffer data may wrap around (non-contiguous)  
-**Constraint**: Must maintain zero-allocation during serialization  
-**Approach**: Needs special-case handling or linearization strategy
+### Phase 5: Future Work
+- Cross-platform serialization (endianness handling)
+- Nested container support
+- Additional container types
+- Performance profiling tools
+- ROS 2 adapter
 
 ## Summary
 
@@ -851,3 +855,5 @@ SeRTial is a **compile-time**, **zero-allocation**, **type-safe** binary seriali
 **Mantra**: If it can be computed at compile time, it SHALL be computed at compile time.
 
 **Goal**: Make serialization trivial for users (`serialize(obj)`) while maintaining strict real-time guarantees through sophisticated compile-time machinery.
+
+**Error Handling**: Use `std::optional` in serialization paths (no exceptions). Container methods may throw for API compatibility (`.at()`, bounds violations) but serialization is exception-free.
