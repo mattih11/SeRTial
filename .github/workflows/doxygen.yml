@@ -38,13 +38,18 @@ jobs:
       - name: Generate documentation
         run: doxygen Doxyfile
       
-      - name: Create .nojekyll file
-        run: touch docs/api/html/.nojekyll
+      - name: Prepare GitHub Pages deployment
+        run: |
+          mkdir -p _site
+          cp -r docs/api/html _site/
+          cp -r tools _site/
+          cp -r examples _site/
+          touch _site/.nojekyll
       
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: docs/api/html
+          path: _site
 
   deploy:
     environment:
