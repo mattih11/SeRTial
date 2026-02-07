@@ -6,7 +6,7 @@
 PROJECT_NAME           = "SeRTial"
 PROJECT_NUMBER         = "2.0.0"
 PROJECT_BRIEF          = "Zero-allocation, compile-time binary serialization for real-time systems"
-PROJECT_LOGO           = 
+PROJECT_LOGO           = docs/SeRTial.png
 OUTPUT_DIRECTORY       = docs/api
 CREATE_SUBDIRS         = NO
 OUTPUT_LANGUAGE        = English
@@ -101,9 +101,9 @@ SERVER_BASED_SEARCH    = NO
 #---------------------------------------------------------------------------
 # Diagrams
 #---------------------------------------------------------------------------
-HAVE_DOT               = NO
+HAVE_DOT               = YES
 CLASS_DIAGRAMS         = YES
-COLLABORATION_GRAPH    = NO
+COLLABORATION_GRAPH    = YES
 GROUP_GRAPHS           = YES
 INCLUDE_GRAPH          = YES
 INCLUDED_BY_GRAPH      = YES

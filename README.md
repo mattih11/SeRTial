@@ -113,6 +113,10 @@ target_link_libraries(your_target PRIVATE SeRTial::SeRTial)
 - **[Size Calculations](docs/SIZE_CALCULATIONS.md)** - Compile-time size computation
 - **[Template Patterns](docs/TEMPLATE_PATTERNS.md)** - Metaprogramming techniques
 
+### API Documentation
+- **[Doxygen API Reference](https://mattih11.github.io/SeRTial/)** - Complete API documentation (auto-generated)
+- **Local build**: Run `make docs` in build directory (requires Doxygen)
+
 ### Tools
 - **[CLI Tool README](tools/sertial-inspect/README.md)** - Terminal-based schema inspection
 - **[Interactive Viewer](https://mattih11.github.io/SeRTial/tools/sertial-inspect/viewer.html?schema=https://raw.githubusercontent.com/mattih11/SeRTial/main/examples/schemas/example_schemas.json)** - Live demo
@@ -262,7 +266,7 @@ See [LICENSE](LICENSE) for full details.
 ## Author
 
 **Matthias Haase**  
-Email: mattihaae@proton.me  
+Email: mattihaase@proton.me  
 GitHub: [https://github.com/mattih11](https://github.com/mattih11)
 
 ---
