@@ -202,7 +202,7 @@ struct PaddedElement {
     uint32_t b;  // 4 bytes
 };  // sizeof = 8 bytes (includes padding)
 
-fixed_vector<PaddedElement, 10> vec = {{1, 100}, {2, 200}};
+fixed_vector<PaddedElement, 10> vec = {% raw %}{{1, 100}, {2, 200}}{% endraw %};
 
 // Serialized: [length:4][elem0:8][elem1:8] = 20 bytes
 // Padding is included in each 8-byte element
