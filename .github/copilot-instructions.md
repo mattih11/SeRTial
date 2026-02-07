@@ -261,6 +261,30 @@ SeRTial/
 
 ## Documentation Strategy
 
+### Emoji Usage Policy
+
+**NEVER use emojis in user-facing documentation:**
+- ❌ **Forbidden locations**: README.md, docs/*.md, examples/*.md, any user-visible markdown files
+- ✅ **Only allowed in**: .github/copilot-instructions.md (internal guidance only)
+
+**Rationale:**
+- Professional appearance for production library
+- Accessibility (screen readers, plain text compatibility)
+- Consistency with technical documentation standards
+- Avoid visual clutter in code examples
+
+**Instead of emojis, use clear text:**
+```markdown
+// ❌ DON'T: // ✅ This works
+// ✅ DO:    // VALID: This works
+
+// ❌ DON'T: // ⚠️ Be careful here
+// ✅ DO:    // WARNING: Be careful here
+
+// ❌ DON'T: // ❌ Not supported
+// ✅ DO:    // ERROR: Not supported
+```
+
 ### Active Documentation
 - **README.md**: User-facing guide with API examples, quick start, and design rationale
 - **Code comments**: Doxygen-style for public APIs, implementation notes for complex metaprogramming

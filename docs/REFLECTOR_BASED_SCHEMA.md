@@ -1,5 +1,11 @@
 # Reflector-Based Schema Export: Zero-Boilerplate Introspection
 
+**Navigation**: [Home](../README.md) | [User Guide](USER_GUIDE.md) | [Container Guide](CONTAINER_GUIDE.md) | [Examples](EXAMPLES.md) | [Schema Viewer](SCHEMA_VIEWER.md)
+
+**Technical References**: [Serialization Mechanism](SERIALIZATION_MECHANISM.md) | [Size Calculations](SIZE_CALCULATIONS.md) | [Template Patterns](TEMPLATE_PATTERNS.md) | **Reflector Schema** | [Container Handling](CONTAINER_HANDLING.md)
+
+---
+
 ## Overview
 
 SeRTial achieves **zero-boilerplate introspection** by leveraging reflect-cpp's `rfl::Reflector` mechanism to expose compile-time metadata directly in JSON schemas. This eliminates the need for manual schema generation code while providing complete access to all StructLayout metadata.
@@ -9,7 +15,7 @@ SeRTial achieves **zero-boilerplate introspection** by leveraging reflect-cpp's 
 ### Before: Manual Schema Export (v4.0)
 
 ```cpp
-// ❌ Manual export - repetitive, error-prone
+// Manual export - repetitive, error-prone
 struct TypeSchema {
     std::string name;
     std::size_t sizeof_bytes;
@@ -38,7 +44,7 @@ TypeSchema export_schema() {
 ### After: Reflector-Based Export (v5.1)
 
 ```cpp
-// ✅ Zero boilerplate - automatic reflection
+// Zero boilerplate - automatic reflection
 template<typename T>
 std::string export_schema() {
     // That's it! One line - everything else is automatic
@@ -141,7 +147,7 @@ JSON Schema             [complete metadata, zero boilerplate!]
 ```cpp
 struct PointCloud {
     Header header;
-    fixed_vector<Point3D, 256> points;  // ❌ reflect-cpp doesn't know this type
+    fixed_vector<Point3D, 256> points;  // reflect-cpp doesn't know this type
 };
 ```
 
@@ -336,7 +342,7 @@ static_assert(
 ### Maintenance Checklist Comment
 
 ```cpp
-// ⚠️  MAINTENANCE NOTE: When adding fields to StructLayout, update:
+// MAINTENANCE NOTE: When adding fields to StructLayout, update:
 //     1. ReflType struct (add corresponding runtime field)
 //     2. EXPECTED_FIELDS array (add field name)
 //     3. EXPECTED_FIELD_COUNT constant (increment)

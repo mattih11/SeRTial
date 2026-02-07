@@ -230,3 +230,23 @@ install(EXPORT SeRTialTargets
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/SeRTial
 )
 
+# ============================================================================
+# Documentation (Doxygen)
+# ============================================================================
+
+find_package(Doxygen OPTIONAL_COMPONENTS dot)
+
+if(DOXYGEN_FOUND)
+    message(STATUS "Doxygen found: ${DOXYGEN_EXECUTABLE}")
+    
+    add_custom_target(docs
+        COMMAND ${DOXYGEN_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/Doxyfile
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        COMMENT "Generating API documentation with Doxygen"
+        VERBATIM
+    )
+    
+    message(STATUS "Use 'make docs' to generate API documentation")
+else()
+    message(STATUS "Doxygen not found - 'make docs' target will not be available")
+endif()

@@ -1,5 +1,11 @@
 # Size Calculations in SeRTial
 
+**Navigation**: [Home](../README.md) | [User Guide](USER_GUIDE.md) | [Container Guide](CONTAINER_GUIDE.md) | [Examples](EXAMPLES.md) | [Schema Viewer](SCHEMA_VIEWER.md)
+
+**Technical References**: [Serialization Mechanism](SERIALIZATION_MECHANISM.md) | **Size Calculations** | [Template Patterns](TEMPLATE_PATTERNS.md) | [Reflector Schema](REFLECTOR_BASED_SCHEMA.md) | [Container Handling](CONTAINER_HANDLING.md)
+
+---
+
 ## Overview
 
 SeRTial needs to compute serialized buffer sizes at **two different times**:
@@ -385,7 +391,7 @@ actual_size = 12 + (4 + 3*4) + (4 + 4*1)
 
 // Serialized layout:
 // [header_id:4][ids_len:4][ids_data:12][name_len:4][name_data:4][checksum:8]
-// Total: 4 + 4 + 12 + 4 + 4 + 8 = 36 bytes ✓
+// Total: 4 + 4 + 12 + 4 + 4 + 8 = 36 bytes
 ```
 
 ### Example 4: Nested Fixed Containers (Future)

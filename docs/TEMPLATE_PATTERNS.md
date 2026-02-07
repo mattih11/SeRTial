@@ -1,5 +1,11 @@
 # Template Metaprogramming Patterns in SeRTial
 
+**Navigation**: [Home](../README.md) | [User Guide](USER_GUIDE.md) | [Container Guide](CONTAINER_GUIDE.md) | [Examples](EXAMPLES.md) | [Schema Viewer](SCHEMA_VIEWER.md)
+
+**Technical References**: [Serialization Mechanism](SERIALIZATION_MECHANISM.md) | [Size Calculations](SIZE_CALCULATIONS.md) | **Template Patterns** | [Reflector Schema](REFLECTOR_BASED_SCHEMA.md) | [Container Handling](CONTAINER_HANDLING.md)
+
+---
+
 ## Overview
 
 SeRTial makes extensive use of C++20 template metaprogramming to achieve **compile-time type analysis**, **zero runtime overhead**, and **type-safe serialization**. This document captures the patterns, techniques, and lessons learned during development.
@@ -42,10 +48,10 @@ concept SerializableContainer = requires(const T& c, T& mut_c) {
 ```
 
 **Benefits:**
-- ✅ **Clear error messages**: Compiler shows exactly which requirement failed
-- ✅ **Self-documenting**: Concept defines the interface contract
-- ✅ **Compile-time validation**: Errors at instantiation, not deep in call stack
-- ✅ **Composable**: Can combine concepts with `&&`, `||`
+- **Clear error messages**: Compiler shows exactly which requirement failed
+- **Self-documenting**: Concept defines the interface contract
+- **Compile-time validation**: Errors at instantiation, not deep in call stack
+- **Composable**: Can combine concepts with `&&`, `||`
 
 **Usage:**
 ```cpp
@@ -88,7 +94,7 @@ struct container_metadata {
 
 ## SFINAE and Template Specialization
 
-### ❌ Anti-Pattern: Ternary Conditional in Variable Template
+### Anti-Pattern: Ternary Conditional in Variable Template
 
 **WRONG** - Both branches are instantiated, even if condition is false:
 
@@ -105,7 +111,7 @@ inline constexpr std::size_t capacity_v =
 
 **Why it fails**: C++ eagerly instantiates both branches of the ternary operator before selecting one. If `container_max_size_v<int>` has no specialization, compilation fails even though the false branch would be chosen.
 
-### ✅ Correct Pattern: Template Specialization
+### Correct Pattern: Template Specialization
 
 **CORRECT** - SFINAE-friendly, only instantiates matching specialization:
 
@@ -130,7 +136,7 @@ inline constexpr std::size_t capacity_v = capacity_impl<T>::value;
 **Why it works**: Template specialization uses **SFINAE (Substitution Failure Is Not An Error)**. When instantiating `capacity_v<int>`:
 1. Tries specialized template `capacity_impl<int>` (requires `SerializableContainer<int>`)
 2. Substitution fails (int is not a SerializableContainer)
-3. Falls back to base template → `value = 0` ✅
+3. Falls back to base template → `value = 0` (SUCCESS)
 4. Never instantiates `container_max_size_v<int>` (avoids error)
 
 ### Pattern: Layered Specialization
@@ -180,13 +186,13 @@ std::size_t calculate_size(const T& obj) {
 ```
 
 **Benefits:**
-- ✅ **Zero runtime cost**: Dead branches eliminated at compile time
-- ✅ **Type-safe**: Each branch only compiles if condition is true
-- ✅ **Readable**: Clear intent (unlike SFINAE tricks)
+- **Zero runtime cost**: Dead branches eliminated at compile time
+- **Type-safe**: Each branch only compiles if condition is true
+- **Readable**: Clear intent (unlike SFINAE tricks)
 
 **Contrast with runtime `if`**:
 ```cpp
-// ❌ Runtime branching (slow, requires runtime type info)
+// Runtime branching (slow, requires runtime type info)
 if (is_container(obj)) {  // Virtual call or RTTI
     return calculate_container_size(obj);
 } else {
@@ -312,9 +318,9 @@ inline constexpr bool is_container_v = SerializableContainer<T>;
 ```
 
 **Benefits:**
-- ✅ **No specializations needed**: Concept applies to all matching types
-- ✅ **Automatic**: New types work immediately if they satisfy the concept
-- ✅ **Clear errors**: Compiler shows which requirement failed
+- **No specializations needed**: Concept applies to all matching types
+- **Automatic**: New types work immediately if they satisfy the concept
+- **Clear errors**: Compiler shows which requirement failed
 
 ## Constexpr Functions
 
@@ -380,9 +386,9 @@ static_assert(is_container_v<T> == SerializableContainer<T>,
 ```
 
 **Benefits:**
-- ✅ **Fail fast**: Errors at compilation, not deployment
-- ✅ **Documentation**: Assertions serve as executable specifications
-- ✅ **Zero runtime cost**: Validation is free (compile-time only)
+- **Fail fast**: Errors at compilation, not deployment
+- **Documentation**: Assertions serve as executable specifications
+- **Zero runtime cost**: Validation is free (compile-time only)
 
 ### Pattern: Debug-Only Assertions
 
@@ -413,10 +419,10 @@ template<typename T> class fixed_vector;  // Forward declaration
 
 template<typename T>
 concept SerializableContainer = requires(T c) {
-    { c.size() } -> std::same_as<std::size_t>;  // ❌ ERROR: incomplete type
+    { c.size() } -> std::same_as<std::size_t>;  // ERROR: incomplete type
 };
 
-static_assert(SerializableContainer<fixed_vector<int, 10>>);  // ❌ Fails!
+static_assert(SerializableContainer<fixed_vector<int, 10>>);  // Fails!
 ```
 
 **Solution**: Move static assertions to a file that includes full definitions:
@@ -426,7 +432,7 @@ static_assert(SerializableContainer<fixed_vector<int, 10>>);  // ❌ Fails!
 #include "fixed_vector.hpp"  // Full definition
 
 // Now the assertion works:
-static_assert(SerializableContainer<fixed_vector<int, 10>>);  // ✅
+static_assert(SerializableContainer<fixed_vector<int, 10>>);  // SUCCESS
 ```
 
 ### Pitfall 2: Ternary Conditionals with Templates
@@ -434,7 +440,7 @@ static_assert(SerializableContainer<fixed_vector<int, 10>>);  // ✅
 **Problem**: Both branches instantiated (see SFINAE section above)
 
 ```cpp
-// ❌ WRONG
+// WRONG
 template<typename T>
 constexpr auto get_size() {
     return is_container_v<T> ? T::max_size_v : sizeof(T);
@@ -444,7 +450,7 @@ constexpr auto get_size() {
 **Solution**: Use `if constexpr` or template specialization:
 
 ```cpp
-// ✅ CORRECT
+// CORRECT
 template<typename T>
 constexpr auto get_size() {
     if constexpr (is_container_v<T>) {
@@ -470,7 +476,7 @@ concept IntegralType = std::is_integral_v<T>;
 void process(NumericType auto x);
 void process(IntegralType auto y);
 
-process(42);  // ❌ Ambiguous!
+process(42);  // Ambiguous!
 ```
 
 **Solution**: Make concepts mutually exclusive or add subsumption:
@@ -493,11 +499,11 @@ concept SignedIntegral = std::is_integral_v<T> && std::is_signed_v<T>;
 ### 1. Prefer Concepts Over SFINAE
 
 ```cpp
-// ❌ Old way: SFINAE
+// Old way: SFINAE
 template<typename T, std::enable_if_t<is_container_v<T>, int> = 0>
 void serialize(const T& obj);
 
-// ✅ New way: Concepts
+// New way: Concepts
 template<SerializableContainer T>
 void serialize(const T& obj);
 ```
@@ -549,10 +555,10 @@ static_assert(!SerializableContainer<int>);
 ### 5. Use Type Aliases for Clarity
 
 ```cpp
-// ❌ Hard to read
+// Hard to read
 using Callback = std::function<void(const fixed_vector<fixed_string<256>, 10>&)>;
 
-// ✅ Clearer
+// Clearer
 using Name = fixed_string<256>;
 using NameList = fixed_vector<Name, 10>;
 using Callback = std::function<void(const NameList&)>;

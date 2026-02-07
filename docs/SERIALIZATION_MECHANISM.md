@@ -1,5 +1,11 @@
 # SeRTial Serialization Mechanism
 
+**Navigation**: [Home](../README.md) | [User Guide](USER_GUIDE.md) | [Container Guide](CONTAINER_GUIDE.md) | [Examples](EXAMPLES.md) | [Schema Viewer](SCHEMA_VIEWER.md)
+
+**Technical References**: **Serialization Mechanism** | [Size Calculations](SIZE_CALCULATIONS.md) | [Template Patterns](TEMPLATE_PATTERNS.md) | [Reflector Schema](REFLECTOR_BASED_SCHEMA.md) | [Container Handling](CONTAINER_HANDLING.md)
+
+---
+
 ## Overview
 
 SeRTial uses a **unified block-based serialization system** that handles both fixed-size and variable-size types through a single code path. All analysis happens at compile time, generating an optimal execution plan with zero runtime overhead.
