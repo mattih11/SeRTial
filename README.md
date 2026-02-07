@@ -270,4 +270,3 @@ GitHub: [https://github.com/mattih11](https://github.com/mattih11)
 ## Acknowledgments
 
 - **[reflect-cpp](https://github.com/getml/reflect-cpp)** - Compile-time reflection
-- **[Catch2](https://github.com/catchorg/Catch2)** - Unit testing framework
