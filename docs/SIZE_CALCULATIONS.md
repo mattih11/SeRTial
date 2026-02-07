@@ -2,7 +2,9 @@
 
 **Navigation**: [Home](../README.md) | [User Guide](USER_GUIDE.md) | [Container Guide](CONTAINER_GUIDE.md) | [Examples](EXAMPLES.md) | [Schema Viewer](SCHEMA_VIEWER.md)
 
-**Technical References**: [Serialization Mechanism](SERIALIZATION_MECHANISM.md) | **Size Calculations** | [Template Patterns](TEMPLATE_PATTERNS.md) | [Reflector Schema](REFLECTOR_BASED_SCHEMA.md) | [Container Handling](CONTAINER_HANDLING.md)
+**Technical References**: [Serialization Mechanism](SERIALIZATION_MECHANISM.md) | **Size Calculations** | [Template Patterns](TEMPLATE_PATTERNS.md) | [Reflector Schema](REFLECTOR_BASED_SCHEMA.md)
+
+**Developer Guides**: [Adding Containers](ADDING_CONTAINERS.md) | [Container Internals](CONTAINER_INTERNALS.md)
 
 ---
 
@@ -567,7 +569,7 @@ TEST_CASE("Size calculations") {
 ## Related Documentation
 
 - **Serialization Mechanism**: See `docs/SERIALIZATION_MECHANISM.md` for how sizes are used during serialization
-- **Container Handling**: See `docs/CONTAINER_HANDLING.md` for container-specific size calculations
+- **Container Handling**: See [Container Internals](CONTAINER_INTERNALS.md) for container-specific size calculations
 - **StructLayout**: See `include/sertial/core/layout/struct_layout.hpp` for implementation
 
 ---

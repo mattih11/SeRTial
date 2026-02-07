@@ -2,7 +2,9 @@
 
 **Navigation**: [Home](../README.md) | [User Guide](USER_GUIDE.md) | [Container Guide](CONTAINER_GUIDE.md) | [Examples](EXAMPLES.md) | [Schema Viewer](SCHEMA_VIEWER.md)
 
-**Technical References**: [Serialization Mechanism](SERIALIZATION_MECHANISM.md) | [Size Calculations](SIZE_CALCULATIONS.md) | [Template Patterns](TEMPLATE_PATTERNS.md) | **Reflector Schema** | [Container Handling](CONTAINER_HANDLING.md)
+**Technical References**: [Serialization Mechanism](SERIALIZATION_MECHANISM.md) | [Size Calculations](SIZE_CALCULATIONS.md) | [Template Patterns](TEMPLATE_PATTERNS.md) | **Reflector Schema**
+
+**Developer Guides**: [Adding Containers](ADDING_CONTAINERS.md) | [Container Internals](CONTAINER_INTERNALS.md)
 
 ---
 
