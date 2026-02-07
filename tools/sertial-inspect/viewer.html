@@ -1,0 +1,1379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SeRTial Schema Viewer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: #4ec9b0;
+            margin-bottom: 20px;
+            font-size: 24px;
+        }
+
+        .controls {
+            background: #252526;
+            padding: 20px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+
+        .file-input {
+            margin-bottom: 15px;
+        }
+
+        input[type="file"] {
+            padding: 8px;
+            background: #3c3c3c;
+            border: 1px solid #555;
+            color: #d4d4d4;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        select {
+            width: 100%;
+            padding: 10px;
+            background: #3c3c3c;
+            border: 1px solid #555;
+            color: #d4d4d4;
+            border-radius: 4px;
+            font-family: inherit;
+            font-size: 14px;
+        }
+
+        .type-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .type-card {
+            background: #2d2d30;
+            padding: 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .type-card:hover {
+            background: #333337;
+            border-color: #007acc;
+        }
+
+        .type-card.selected {
+            border-color: #4ec9b0;
+            background: #333337;
+        }
+
+        .type-name {
+            color: #4ec9b0;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .type-size {
+            color: #9cdcfe;
+            font-size: 12px;
+        }
+
+        .details {
+            background: #252526;
+            padding: 20px;
+            border-radius: 4px;
+            margin-top: 20px;
+        }
+
+        .section {
+            margin-bottom: 30px;
+        }
+
+        .section-title {
+            color: #569cd6;
+            font-size: 18px;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #3c3c3c;
+            padding-bottom: 5px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+
+        th {
+            background: #2d2d30;
+            color: #4ec9b0;
+            padding: 10px;
+            text-align: left;
+            border-bottom: 2px solid #555;
+        }
+
+        td {
+            padding: 8px 10px;
+            border-bottom: 1px solid #3c3c3c;
+        }
+
+        tr:hover {
+            background: #2d2d30;
+        }
+
+        .field-marker {
+            display: inline-block;
+            width: 20px;
+            height: 14px;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+
+        .memory-layout {
+            margin: 20px 0;
+            overflow-x: auto;
+        }
+
+        .memory-title {
+            color: #4ec9b0;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+
+        .memory-axis {
+            font-size: 11px;
+            color: #858585;
+            white-space: pre;
+            font-family: 'Consolas', 'Monaco', monospace;
+            line-height: 1.4;
+        }
+
+        .memory-bar {
+            font-size: 11px;
+            white-space: pre;
+            font-family: 'Consolas', 'Monaco', monospace;
+            line-height: 1.4;
+            margin: 2px 0;
+        }
+
+        .memory-line {
+            display: flex;
+            align-items: center;
+            margin: 2px 0;
+        }
+
+        .memory-byte-label {
+            color: #858585;
+            font-size: 11px;
+            width: 50px;
+            text-align: right;
+            margin-right: 5px;
+        }
+
+        .legend {
+            margin-top: 20px;
+            padding: 15px;
+            background: #2d2d30;
+            border-radius: 4px;
+        }
+
+        .legend-title {
+            color: #4ec9b0;
+            margin-bottom: 10px;
+        }
+
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+
+        .legend-symbol {
+            margin-right: 10px;
+            font-family: monospace;
+        }
+
+        /* Field colors */
+        .field-0 { background-color: #569cd6; }
+        .field-1 { background-color: #4ec9b0; }
+        .field-2 { background-color: #dcdcaa; }
+        .field-3 { background-color: #c586c0; }
+        .field-4 { background-color: #9cdcfe; }
+        .field-5 { background-color: #ce9178; }
+        .field-6 { background-color: #b668cd; }
+        .field-7 { background-color: #4ec9a0; }
+        .padding { background-color: #5a5a5a; }
+
+        /* Interactive controls */
+        .variable-controls {
+            margin: 20px 0;
+            padding: 15px;
+            background: #2d2d30;
+            border-radius: 4px;
+        }
+
+        .control-row {
+            display: flex;
+            align-items: center;
+            margin: 10px 0;
+            gap: 15px;
+        }
+
+        .control-label {
+            min-width: 150px;
+            color: #d4d4d4;
+        }
+
+        .control-slider {
+            flex: 1;
+            height: 4px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: #3e3e42;
+            outline: none;
+            border-radius: 2px;
+        }
+
+        .control-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #4ec9b0;
+            cursor: pointer;
+            border-radius: 50%;
+        }
+
+        .control-slider::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            background: #4ec9b0;
+            cursor: pointer;
+            border-radius: 50%;
+            border: none;
+        }
+
+        .control-value {
+            min-width: 80px;
+            text-align: right;
+            color: #4ec9b0;
+            font-family: monospace;
+        }
+
+        .animation-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .control-button {
+            padding: 8px 16px;
+            background: #0e639c;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+
+        .control-button:hover {
+            background: #1177bb;
+        }
+
+        .control-button:disabled {
+            background: #3e3e42;
+            color: #858585;
+            cursor: not-allowed;
+        }
+
+        /* Hover highlighting */
+        .highlight-field {
+            outline: 2px solid #ffffff;
+            outline-offset: 2px;
+            z-index: 10;
+        }
+
+        .hoverable {
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .hoverable:hover {
+            opacity: 0.8;
+        }
+
+        .dimmed {
+            opacity: 0.3;
+        }
+
+        .collapsible-section {
+            margin-bottom: 20px;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px;
+            background: #2d2d30;
+            border-radius: 4px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .section-header:hover {
+            background: #3e3e42;
+        }
+
+        .collapse-icon {
+            font-size: 14px;
+            transition: transform 0.2s;
+            color: #4ec9b0;
+        }
+
+        .collapse-icon.collapsed {
+            transform: rotate(-90deg);
+        }
+
+        .section-content {
+            margin-top: 10px;
+            overflow: hidden;
+        }
+
+        .section-content.collapsed {
+            display: none;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .info-box {
+            background: #2d2d30;
+            padding: 12px;
+            border-radius: 4px;
+        }
+
+        .info-label {
+            color: #858585;
+            font-size: 12px;
+            margin-bottom: 5px;
+        }
+
+        .info-value {
+            color: #dcdcaa;
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 SeRTial Schema Viewer</h1>
+        
+        <div class="controls">
+            <div class="file-input">
+                <input type="file" id="fileInput" accept=".json" />
+            </div>
+            <select id="typeSelect" class="hidden">
+                <option value="">Select a type...</option>
+            </select>
+            <div id="typeList" class="type-list hidden"></div>
+        </div>
+
+        <div id="details" class="details hidden"></div>
+    </div>
+
+    <script>
+        const FIELD_COLORS = [
+            '#569cd6', '#4ec9b0', '#dcdcaa', '#c586c0',
+            '#9cdcfe', '#ce9178', '#b668cd', '#4ec9a0'
+        ];
+        const PADDING_COLOR = '#5a5a5a';
+
+        let schemas = [];
+        let selectedSchema = null;
+        let variableFieldSizes = {};  // Runtime sizes for variable fields
+        let animationId = null;
+        let highlightedFieldIndex = null;
+
+        // Load schema from URL parameter on page load
+        async function loadFromURL() {
+            const params = new URLSearchParams(window.location.search);
+            const schemaUrl = params.get('schema');
+            
+            if (schemaUrl) {
+                try {
+                    const response = await fetch(schemaUrl);
+                    if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    
+                    const data = await response.json();
+                    schemas = data.messages.map(msgJson => JSON.parse(msgJson));
+                    console.log('Loaded schemas from URL:', schemas);
+                    
+                    renderTypeList();
+                    document.getElementById('typeList').classList.remove('hidden');
+                    
+                    // Auto-select first type if available
+                    if (schemas.length > 0) {
+                        selectType(0);
+                    }
+                } catch (err) {
+                    console.error('Error loading schema from URL:', err);
+                    alert('Error loading schema from URL: ' + err.message);
+                }
+            }
+        }
+
+        // File input handler
+        document.getElementById('fileInput').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            try {
+                const text = await file.text();
+                const data = JSON.parse(text);
+                
+                // Parse schemas
+                schemas = data.messages.map(msgJson => JSON.parse(msgJson));
+                console.log('Loaded schemas:', schemas);
+                
+                // Show type list
+                renderTypeList();
+                document.getElementById('typeList').classList.remove('hidden');
+            } catch (err) {
+                alert('Error loading schema file: ' + err.message);
+            }
+        });
+        
+        // Load from URL on page load
+        loadFromURL();
+
+        function renderTypeList() {
+            const typeList = document.getElementById('typeList');
+            typeList.innerHTML = '';
+
+            schemas.forEach((schema, index) => {
+                const card = document.createElement('div');
+                card.className = 'type-card';
+                card.innerHTML = `
+                    <div class="type-name">${schema.name}</div>
+                    <div class="type-size">
+                        ${schema.sizeof_bytes} bytes → ${schema.max_packed_size} bytes max
+                    </div>
+                `;
+                card.addEventListener('click', () => selectType(index));
+                typeList.appendChild(card);
+            });
+        }
+
+        function selectType(index) {
+            selectedSchema = schemas[index];
+            
+            // Update selection visual
+            document.querySelectorAll('.type-card').forEach((card, i) => {
+                card.classList.toggle('selected', i === index);
+            });
+
+            renderDetails();
+            document.getElementById('details').classList.remove('hidden');
+        }
+
+        function renderDetails() {
+            const details = document.getElementById('details');
+            const schema = selectedSchema;
+            
+            // Initialize variable field sizes to max
+            variableFieldSizes = {};
+            schema.field_names.forEach((name, i) => {
+                if (schema.field_is_variable[i]) {
+                    const capacity = schema.capacities ? schema.capacities[i] : 0;
+                    variableFieldSizes[i] = capacity;
+                }
+            });
+
+            details.innerHTML = `
+                <div class="section">
+                    <h2 style="color: #4ec9b0; margin-bottom: 20px;">${schema.name}</h2>
+                    
+                    <div class="info-grid">
+                        <div class="info-box">
+                            <div class="info-label">Struct Size</div>
+                            <div class="info-value">${schema.sizeof_bytes} bytes</div>
+                        </div>
+                        <div class="info-box">
+                            <div class="info-label">Base Packed</div>
+                            <div class="info-value">${schema.base_packed_size} bytes</div>
+                        </div>
+                        <div class="info-box">
+                            <div class="info-label">Max Packed</div>
+                            <div class="info-value">${schema.max_packed_size} bytes</div>
+                        </div>
+                        <div class="info-box">
+                            <div class="info-label">Current Packed</div>
+                            <div class="info-value" id="currentPackedSize">${calculateCurrentPackedSize(schema)} bytes</div>
+                        </div>
+                        <div class="info-box">
+                            <div class="info-label">Fields</div>
+                            <div class="info-value">${schema.field_names.length}</div>
+                        </div>
+                    </div>
+                </div>
+
+                ${renderVariableControls(schema)}
+
+                <div class="collapsible-section">
+                    <div class="section-header" onclick="toggleSection(this)">
+                        <span class="collapse-icon">▼</span>
+                        <span class="section-title">Fields</span>
+                    </div>
+                    <div class="section-content">
+                        ${renderFieldTable(schema)}
+                    </div>
+                </div>
+
+                <div class="collapsible-section">
+                    <div class="section-header" onclick="toggleSection(this)">
+                        <span class="collapse-icon">▼</span>
+                        <span class="section-title">Memory Layout (struct)</span>
+                    </div>
+                    <div class="section-content">
+                        ${renderMemoryLayout(schema, false)}
+                    </div>
+                </div>
+
+                <div class="collapsible-section">
+                    <div class="section-header" onclick="toggleSection(this)">
+                        <span class="collapse-icon">▼</span>
+                        <span class="section-title">Serialized Layout (packed)</span>
+                    </div>
+                    <div class="section-content" data-layout="serialized">
+                        ${renderMemoryLayout(schema, true)}
+                    </div>
+                </div>
+
+                <div class="collapsible-section">
+                    <div class="section-header" onclick="toggleSection(this)">
+                        <span class="collapse-icon">▼</span>
+                        <span class="section-title">Serialization Operations</span>
+                    </div>
+                    <div class="section-content">
+                        ${renderBlockOperations(schema, 'serialize')}
+                    </div>
+                </div>
+
+                <div class="collapsible-section">
+                    <div class="section-header" onclick="toggleSection(this)">
+                        <span class="collapse-icon">▼</span>
+                        <span class="section-title">Deserialization Operations</span>
+                    </div>
+                    <div class="section-content">
+                        ${renderBlockOperations(schema, 'deserialize')}
+                    </div>
+                </div>
+
+                <div class="legend">
+                    <div class="legend-title">Legend:</div>
+                    <div class="legend-item">
+                        <span class="legend-symbol" style="background: ${FIELD_COLORS[0]}; padding: 2px 8px;"> </span>
+                        <span>Regular field</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-symbol" style="background: ${FIELD_COLORS[1]}; padding: 2px 8px;">░</span>
+                        <span>Variable field</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-symbol" style="background: ${PADDING_COLOR}; padding: 2px 8px;">░</span>
+                        <span>Padding (not serialized)</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-symbol">├─┤</span>
+                        <span>Length prefix (4 bytes)</span>
+                    </div>
+                </div>
+            `;
+            
+            // Setup hover highlighting after DOM is updated
+            setTimeout(setupHoverHighlighting, 0);
+        }
+
+        function toggleSection(header) {
+            const icon = header.querySelector('.collapse-icon');
+            const content = header.nextElementSibling;
+            
+            if (content.classList.contains('collapsed')) {
+                content.classList.remove('collapsed');
+                icon.classList.remove('collapsed');
+                content.style.maxHeight = content.scrollHeight + 'px';
+            } else {
+                content.classList.add('collapsed');
+                icon.classList.add('collapsed');
+                content.style.maxHeight = '0';
+            }
+        }
+
+        function renderFieldTable(schema) {
+            let html = '<table><thead><tr>';
+            html += '<th></th><th>Name</th><th>Type</th><th>Size</th><th>Offset</th><th>Align</th><th>Var</th>';
+            html += '</tr></thead><tbody>';
+
+            schema.field_names.forEach((name, i) => {
+                const color = FIELD_COLORS[i % FIELD_COLORS.length];
+                const isVar = schema.field_is_variable[i];
+                const capacity = schema.capacities ? schema.capacities[i] : null;
+                
+                html += `<tr data-field-index="${i}" class="hoverable">`;
+                html += `<td><span class="field-marker" style="background: ${color};">░</span></td>`;
+                html += `<td>${name}</td>`;
+                html += `<td>${truncate(schema.field_types[i], 30)}</td>`;
+                html += `<td>${schema.field_sizes[i]}</td>`;
+                html += `<td>${schema.field_offsets[i]}</td>`;
+                html += `<td>${schema.field_alignments[i]}</td>`;
+                html += `<td>${isVar && capacity ? `yes [${capacity}]` : 'no'}</td>`;
+                html += '</tr>';
+            });
+
+            html += '</tbody></table>';
+            return html;
+        }
+
+        function renderBlockOperations(schema, mode = 'serialize') {
+            let html = '<div style="font-family: monospace; font-size: 12px;">';
+            
+            // Build execution plan
+            const blocks = buildSerializationBlocks(schema, mode);
+            
+            html += '<div style="margin-bottom: 15px; color: #d4d4d4;">';
+            html += `Total blocks: <span style="color: #4ec9b0;">${blocks.length}</span> | `;
+            html += `Fixed: <span style="color: #569cd6;">${blocks.filter(b => b.type === 'fixed').length}</span> | `;
+            html += `Dynamic: <span style="color: #dcdcaa;">${blocks.filter(b => b.type === 'dynamic').length}</span> | `;
+            html += `RuntimeOffset: <span style="color: #c586c0;">${blocks.filter(b => b.type === 'runtime_offset').length}</span>`;
+            html += '</div>';
+            
+            blocks.forEach((block, idx) => {
+                const fieldColor = block.type === 'padding' ? PADDING_COLOR : 
+                                  (block.fieldIndex >= 0 ? FIELD_COLORS[block.fieldIndex % FIELD_COLORS.length] : '#888');
+                const fieldIndices = block.fieldIndices || (block.fieldIndex >= 0 ? [block.fieldIndex] : []);
+                const fieldAttr = fieldIndices.length > 0 ? ` data-block-fields="${fieldIndices.join(',')}" class="hoverable"` : '';
+                
+                html += `<div style="margin: 8px 0; padding: 8px; background: #2d2d2d; border-left: 3px solid ${fieldColor};"${fieldAttr}>`;
+                
+                // Block header
+                html += '<div style="display: flex; align-items: center; gap: 10px; margin-bottom: 5px;">';
+                html += `<span style="color: ${fieldColor}; font-weight: bold;">${block.type.toUpperCase()}</span>`;
+                if (block.fieldIndex >= 0) {
+                    html += `<span style="color: #9cdcfe;">${schema.field_names[block.fieldIndex]}</span>`;
+                }
+                html += `<span style="color: #666;">→</span>`;
+                html += `<span style="color: #ce9178;">${block.description}</span>`;
+                html += '</div>';
+                
+                // Operation details
+                html += '<div style="color: #858585; font-size: 11px; margin-left: 20px;">';
+                html += block.operation;
+                html += '</div>';
+                
+                html += '</div>';
+            });
+            
+            html += '</div>';
+            return html;
+        }
+
+        function buildSerializationBlocks(schema, mode = 'serialize') {
+            const blocks = [];
+            let dst_offset = 0;
+            
+            // Track which fields we've processed
+            const processed = new Array(schema.field_names.length).fill(false);
+            
+            const isSerialize = mode === 'serialize';
+            const srcLabel = isSerialize ? 'src' : 'src';
+            const destLabel = isSerialize ? 'dest' : 'dest';
+            
+            // Phase 1: Find contiguous fixed blocks before any variable field
+            let firstDynamicIndex = schema.field_names.length;
+            for (let i = 0; i < schema.field_names.length; i++) {
+                if (schema.field_is_variable[i]) {
+                    firstDynamicIndex = i;
+                    break;
+                }
+            }
+            
+            // Build fixed blocks before first dynamic field (detect padding gaps)
+            if (firstDynamicIndex > 0) {
+                let regionStartSrc = schema.field_offsets[0];
+                let regionStartDst = dst_offset;
+                let regionSize = schema.field_sizes[0];
+                let regionFieldStart = 0;
+                let regionFieldCount = 1;
+                
+                for (let i = 1; i < firstDynamicIndex; i++) {
+                    const currentOffset = schema.field_offsets[i];
+                    const expectedOffset = regionStartSrc + regionSize;
+                    
+                    if (currentOffset === expectedOffset) {
+                        // Consecutive - extend region
+                        regionSize += schema.field_sizes[i];
+                        regionFieldCount++;
+                    } else {
+                        // Gap detected (padding) - close current block, add padding, start new block
+                        const fieldNames = schema.field_names.slice(regionFieldStart, regionFieldStart + regionFieldCount).join(', ');
+                        const fieldIndices = Array.from({length: regionFieldCount}, (_, idx) => regionFieldStart + idx);
+                        const op = isSerialize 
+                            ? `memcpy(dest + ${regionStartDst}, src + ${regionStartSrc}, ${regionSize})  // Copy ${regionSize} bytes`
+                            : `memcpy(dest + ${regionStartSrc}, src + ${regionStartDst}, ${regionSize})  // Copy ${regionSize} bytes`;
+                        blocks.push({
+                            type: 'fixed',
+                            fieldIndex: regionFieldStart,
+                            fieldIndices: fieldIndices,
+                            description: `${regionFieldCount} field(s): ${fieldNames}`,
+                            operation: op
+                        });
+                        dst_offset += regionSize;
+                        
+                        // Add padding block
+                        const paddingSize = currentOffset - expectedOffset;
+                        blocks.push({
+                            type: 'padding',
+                            fieldIndex: -1,
+                            description: `Skip ${paddingSize} bytes of padding`,
+                            operation: `// Padding at src + ${expectedOffset} not copied`
+                        });
+                        
+                        // Start new region
+                        regionStartSrc = currentOffset;
+                        regionStartDst = dst_offset;
+                        regionSize = schema.field_sizes[i];
+                        regionFieldStart = i;
+                        regionFieldCount = 1;
+                    }
+                }
+                
+                // Close final region
+                const fieldNames = schema.field_names.slice(regionFieldStart, regionFieldStart + regionFieldCount).join(', ');
+                const fieldIndices = Array.from({length: regionFieldCount}, (_, idx) => regionFieldStart + idx);
+                const op = isSerialize 
+                    ? `memcpy(dest + ${regionStartDst}, src + ${regionStartSrc}, ${regionSize})  // Copy ${regionSize} bytes`
+                    : `memcpy(dest + ${regionStartSrc}, src + ${regionStartDst}, ${regionSize})  // Copy ${regionSize} bytes`;
+                blocks.push({
+                    type: 'fixed',
+                    fieldIndex: regionFieldStart,
+                    fieldIndices: fieldIndices,
+                    description: `${regionFieldCount} field(s): ${fieldNames}`,
+                    operation: op
+                });
+                dst_offset += regionSize;
+                
+                // Check for padding before first dynamic field
+                if (firstDynamicIndex < schema.field_names.length) {
+                    const expectedOffset = regionStartSrc + regionSize;
+                    const dynamicOffset = schema.field_offsets[firstDynamicIndex];
+                    if (dynamicOffset > expectedOffset) {
+                        const paddingSize = dynamicOffset - expectedOffset;
+                        const padOp = isSerialize 
+                            ? `// Padding at src + ${expectedOffset} not copied`
+                            : `// Padding at dest + ${expectedOffset} not written`;
+                        blocks.push({
+                            type: 'padding',
+                            fieldIndex: -1,
+                            description: `Skip ${paddingSize} bytes of padding`,
+                            operation: padOp
+                        });
+                    }
+                }
+                
+                for (let i = 0; i < firstDynamicIndex; i++) {
+                    processed[i] = true;
+                }
+            }
+            
+            // Phase 2: Process variable fields and trailing fixed fields
+            for (let i = firstDynamicIndex; i < schema.field_names.length; i++) {
+                if (processed[i]) continue;
+                
+                if (schema.field_is_variable[i]) {
+                    // Dynamic block: length prefix + variable data
+                    const capacity = schema.capacities ? schema.capacities[i] : 0;
+                    const elemSize = schema.element_sizes ? schema.element_sizes[i] : 1;
+                    const maxSize = capacity * elemSize;
+                    
+                    const lenOp = isSerialize
+                        ? `uint32_t len = src.${schema.field_names[i]}.size();\nmemcpy(dest + ${dst_offset}, &len, 4)`
+                        : `uint32_t len;\nmemcpy(&len, src + ${dst_offset}, 4)`
+                    blocks.push({
+                        type: 'dynamic',
+                        fieldIndex: i,
+                        description: `Length prefix (4 bytes)`,
+                        operation: lenOp
+                    });
+                    dst_offset += 4;
+                    
+                    const dataOp = isSerialize
+                        ? `memcpy(dest + ${dst_offset}, src.${schema.field_names[i]}.data(), len * ${elemSize})  // Runtime size`
+                        : `dest.${schema.field_names[i]}.set_size_unsafe(len);\nmemcpy(dest.${schema.field_names[i]}.data_unsafe(), src + ${dst_offset}, len * ${elemSize})`
+                    blocks.push({
+                        type: 'dynamic',
+                        fieldIndex: i,
+                        description: `Variable data (0 to ${capacity} elements, ${elemSize} bytes each)`,
+                        operation: dataOp
+                    });
+                    dst_offset += maxSize;  // For offset calculation, use max
+                    
+                    processed[i] = true;
+                }
+            }
+            
+            // Phase 3: Process runtime_offset fields (after dynamic) with padding detection
+            const runtimeOffsetStart = firstDynamicIndex;
+            let firstRuntimeOffset = -1;
+            for (let i = runtimeOffsetStart; i < schema.field_names.length; i++) {
+                if (!processed[i] && !schema.field_is_variable[i]) {
+                    firstRuntimeOffset = i;
+                    break;
+                }
+            }
+            
+            if (firstRuntimeOffset >= 0) {
+                let regionStartSrc = schema.field_offsets[firstRuntimeOffset];
+                let regionSize = schema.field_sizes[firstRuntimeOffset];
+                let regionFieldStart = firstRuntimeOffset;
+                let regionFieldCount = 1;
+                processed[firstRuntimeOffset] = true;
+                
+                for (let i = firstRuntimeOffset + 1; i < schema.field_names.length; i++) {
+                    if (processed[i]) continue;
+                    
+                    const currentOffset = schema.field_offsets[i];
+                    const expectedOffset = regionStartSrc + regionSize;
+                    
+                    if (currentOffset === expectedOffset) {
+                        // Consecutive - extend region
+                        regionSize += schema.field_sizes[i];
+                        regionFieldCount++;
+                        processed[i] = true;
+                    } else {
+                        // Gap detected (padding) - close current block, add padding, start new block
+                        const fieldNames = schema.field_names.slice(regionFieldStart, regionFieldStart + regionFieldCount).join(', ');
+                        const rtOp = isSerialize
+                            ? `memcpy(dest + runtime_offset, src + ${regionStartSrc}, ${regionSize})  // Offset varies`
+                            : `memcpy(dest + ${regionStartSrc}, src + runtime_offset, ${regionSize})  // Offset varies`;
+                        blocks.push({
+                            type: 'runtime_offset',
+                            fieldIndex: regionFieldStart,
+                            description: `${regionFieldCount} field(s) after variable: ${fieldNames}`,
+                            operation: rtOp
+                        });
+                        
+                        // Add padding block
+                        const paddingSize = currentOffset - expectedOffset;
+                        const padOp = isSerialize 
+                            ? `// Padding at src + ${expectedOffset} not copied`
+                            : `// Padding at dest + ${expectedOffset} not written`;
+                        blocks.push({
+                            type: 'padding',
+                            fieldIndex: -1,
+                            description: `Skip ${paddingSize} bytes of padding`,
+                            operation: padOp
+                        });
+                        
+                        // Start new region
+                        regionStartSrc = currentOffset;
+                        regionSize = schema.field_sizes[i];
+                        regionFieldStart = i;
+                        regionFieldCount = 1;
+                        processed[i] = true;
+                    }
+                }
+                
+                // Close final runtime_offset region
+                const fieldNames = schema.field_names.slice(regionFieldStart, regionFieldStart + regionFieldCount).join(', ');
+                const rtOp = isSerialize
+                    ? `memcpy(dest + runtime_offset, src + ${regionStartSrc}, ${regionSize})  // Offset varies`
+                    : `memcpy(dest + ${regionStartSrc}, src + runtime_offset, ${regionSize})  // Offset varies`;
+                blocks.push({
+                    type: 'runtime_offset',
+                    fieldIndex: regionFieldStart,
+                    description: `${regionFieldCount} field(s) after variable: ${fieldNames}`,
+                    operation: rtOp
+                });
+            }
+            
+            return blocks;
+        }
+
+        function renderMemoryLayout(schema, isPacked) {
+            const totalBytes = isPacked ? schema.max_packed_size : schema.sizeof_bytes;
+            const charsPerLine = 100;
+            
+            // Build regions
+            const regions = isPacked ? buildPackedRegions(schema) : buildStructRegions(schema);
+            
+            // Calculate layout
+            const numDigits = totalBytes.toString().length;
+            const extraSpace = (numDigits + 3) * 2;
+            const availableChars = 120 - extraSpace;
+            const numLines = 1 + Math.floor((totalBytes - 1) / availableChars);
+            const bytesPerLine = Math.ceil(totalBytes / numLines);
+            const charsPerByte = Math.floor(availableChars / bytesPerLine);
+            
+            let html = '<div class="memory-layout">';
+            
+            // Top axis
+            html += renderAxis(0, Math.min(totalBytes, bytesPerLine), charsPerByte, numDigits, true);
+            
+            // Memory lines
+            for (let line = 0; line < numLines; line++) {
+                const startByte = line * bytesPerLine;
+                const endByte = Math.min(totalBytes, (line + 1) * bytesPerLine);
+                html += renderMemoryLine(regions, startByte, endByte, charsPerByte, numDigits, numLines > 1);
+            }
+            
+            // Bottom axis (only for multi-line)
+            if (numLines > 1) {
+                const lastLineStart = (numLines - 1) * bytesPerLine;
+                const lastLineBytes = totalBytes - lastLineStart;
+                html += renderAxis(lastLineStart, totalBytes, charsPerByte, numDigits, false);
+            }
+            
+            html += `<div style="color: #858585; margin-top: 10px;">${totalBytes} bytes</div>`;
+            html += '</div>';
+            
+            return html;
+        }
+
+        function buildStructRegions(schema) {
+            const regions = [];
+            let currentOffset = 0;
+            
+            schema.field_names.forEach((name, i) => {
+                const offset = schema.field_offsets[i];
+                const size = schema.field_sizes[i];
+                
+                // Add padding
+                if (offset > currentOffset) {
+                    regions.push({
+                        offset: currentOffset,
+                        size: offset - currentOffset,
+                        fieldIndex: -1,
+                        isVariable: false,
+                        isLengthPrefix: false
+                    });
+                }
+                
+                // Add field
+                regions.push({
+                    offset: offset,
+                    size: size,
+                    fieldIndex: i,
+                    isVariable: schema.field_is_variable[i],
+                    isLengthPrefix: false
+                });
+                
+                currentOffset = offset + size;
+            });
+            
+            // Trailing padding
+            if (currentOffset < schema.sizeof_bytes) {
+                regions.push({
+                    offset: currentOffset,
+                    size: schema.sizeof_bytes - currentOffset,
+                    fieldIndex: -1,
+                    isVariable: false,
+                    isLengthPrefix: false
+                });
+            }
+            
+            return regions;
+        }
+
+        function buildPackedRegions(schema) {
+            console.log('Building packed regions for:', schema.name);
+            console.log('Schema field_is_variable:', schema.field_is_variable);
+            console.log('Schema capacities:', schema.capacities);
+            console.log('Schema element_sizes:', schema.element_sizes);
+            let regions = [];
+            let offset = 0;
+            
+            schema.field_names.forEach((name, i) => {
+                const isVar = schema.field_is_variable[i];
+                
+                if (isVar) {
+                    // Length prefix
+                    regions.push({
+                        offset: offset,
+                        size: 4,
+                        fieldIndex: i,
+                        isVariable: false,
+                        isLengthPrefix: true
+                    });
+                    offset += 4;
+                    
+                    // Variable data - use runtime size from variableFieldSizes
+                    const capacity = schema.capacities ? schema.capacities[i] : 0;
+                    const elemSize = schema.element_sizes ? schema.element_sizes[i] : 1;
+                    const runtimeSize = variableFieldSizes[i] !== undefined ? variableFieldSizes[i] : capacity;
+                    const varSize = runtimeSize * elemSize;
+                    
+                    if (varSize > 0) {
+                        regions.push({
+                            offset: offset,
+                            size: varSize,
+                            fieldIndex: i,
+                            isVariable: true,
+                            isLengthPrefix: false
+                        });
+                        offset += varSize;
+                    }
+                } else {
+                    // Fixed field
+                    const size = schema.field_sizes[i];
+                    regions.push({
+                        offset: offset,
+                        size: size,
+                        fieldIndex: i,
+                        isVariable: false,
+                        isLengthPrefix: false
+                    });
+                    offset += size;
+                }
+            });
+            
+            return regions;
+        }
+
+        function renderAxis(startByte, endByte, charsPerByte, numDigits, isTop) {
+            const indent = ' '.repeat(numDigits + 2);
+            const byteRange = endByte - startByte;
+            
+            let tickSpacing = 1;
+            if (byteRange > 100) tickSpacing = 20;
+            else if (byteRange > 50) tickSpacing = 10;
+            else if (byteRange > 20) tickSpacing = 5;
+            else if (byteRange > 10) tickSpacing = 4;
+            
+            // Number line
+            let numbers = indent + ' ';
+            const firstTick = Math.ceil(startByte / tickSpacing) * tickSpacing;
+            const numChars = (endByte - startByte) * charsPerByte;
+            const numberArray = new Array(numChars).fill(' ');
+            
+            for (let byte = firstTick; byte < endByte; byte += tickSpacing) {
+                const charPos = (byte - startByte) * charsPerByte;
+                const label = byte.toString();
+                for (let i = 0; i < label.length && charPos + i < numChars; i++) {
+                    numberArray[charPos + i] = label[i];
+                }
+            }
+            numbers += numberArray.join('');
+            
+            // Axis line
+            const corner = isTop ? '┌' : '└';
+            const endCorner = isTop ? '┐' : '┘';
+            const majorTick = '┼';
+            const minorTick = isTop ? '┬' : '┴';
+            
+            let axis = indent + corner;
+            for (let byte = startByte; byte < endByte; byte++) {
+                const tick = (byte % tickSpacing === 0) ? majorTick : minorTick;
+                axis += tick;
+                axis += '─'.repeat(charsPerByte - 1);
+            }
+            axis += endCorner;
+            
+            return `<div class="memory-axis">${isTop ? numbers + '\n' + axis : axis + '\n' + numbers}</div>`;
+        }
+
+        function renderMemoryLine(regions, startByte, endByte, charsPerByte, numDigits, showLabels) {
+            const lineBytes = endByte - startByte;
+            const lineChars = lineBytes * charsPerByte;
+            
+            // Build memory content
+            let content = '';
+            let currentChar = 0;
+            
+            for (const region of regions) {
+                const regionEnd = region.offset + region.size;
+                
+                if (regionEnd <= startByte) continue;
+                if (region.offset >= endByte) break;
+                
+                const overlapStart = Math.max(region.offset, startByte);
+                const overlapEnd = Math.min(regionEnd, endByte);
+                const overlapSize = overlapEnd - overlapStart;
+                const chars = Math.max(1, Math.floor(overlapSize * charsPerByte));  // Ensure at least 1 char
+                
+                // Debug logging for variable fields
+                if (region.isVariable) {
+                    console.log('Variable field region:', {
+                        fieldIndex: region.fieldIndex,
+                        offset: region.offset,
+                        size: region.size,
+                        overlapStart, overlapEnd, overlapSize,
+                        charsPerByte, chars
+                    });
+                }
+                
+                const color = region.fieldIndex === -1 ? PADDING_COLOR : FIELD_COLORS[region.fieldIndex % FIELD_COLORS.length];
+                const fieldAttr = region.fieldIndex !== -1 ? ` data-field-index="${region.fieldIndex}" class="hoverable"` : '';
+                
+                if (region.isLengthPrefix) {
+                    // Render length prefix with field background color
+                    if (chars === 1) {
+                        content += `<span style="background: ${color}; color: #1e1e1e;"${fieldAttr}>║</span>`;
+                    } else if (chars === 2) {
+                        content += `<span style="background: ${color}; color: #1e1e1e;"${fieldAttr}>├┤</span>`;
+                    } else {
+                        content += `<span style="background: ${color}; color: #1e1e1e;"${fieldAttr}>├${'─'.repeat(chars - 2)}┤</span>`;
+                    }
+                } else if (region.fieldIndex === -1) {
+                    // Padding: use gray shading
+                    content += `<span style="background: ${color}; color: ${color};">${'░'.repeat(chars)}</span>`;
+                } else if (region.isVariable) {
+                    // Variable field: use shading with field color
+                    content += `<span style="background: ${color}; color: ${color};"${fieldAttr}>${'░'.repeat(chars)}</span>`;
+                } else {
+                    // Regular field: colored background with space
+                    content += `<span style="background: ${color}; color: ${color};"${fieldAttr}>${' '.repeat(chars)}</span>`;
+                }
+                
+                currentChar += chars;
+            }
+            
+            // Fill remaining
+            while (currentChar < lineChars) {
+                content += ' ';
+                currentChar++;
+            }
+            
+            const leftLabel = showLabels ? startByte.toString().padStart(numDigits, ' ') + '  ' : ' '.repeat(numDigits + 2);
+            const rightLabel = showLabels ? ' ' + (endByte - 1).toString().padEnd(numDigits, ' ') : '';
+            
+            return `<div class="memory-bar">${leftLabel}├${content}┤${rightLabel}</div>`;
+        }
+
+        function truncate(str, maxLen) {
+            if (str.length <= maxLen) return str;
+            return str.substring(0, maxLen - 2) + '..';
+        }
+
+        // Calculate current packed size based on variable field runtime sizes
+        function calculateCurrentPackedSize(schema) {
+            let size = schema.base_packed_size;
+            schema.field_names.forEach((name, i) => {
+                if (schema.field_is_variable[i]) {
+                    const elemSize = schema.element_sizes ? schema.element_sizes[i] : 1;
+                    const runtimeSize = variableFieldSizes[i] || 0;
+                    size += 4 + (runtimeSize * elemSize);  // Length prefix + data
+                }
+            });
+            return size;
+        }
+
+        // Render variable field controls
+        function renderVariableControls(schema) {
+            const hasVariableFields = schema.field_names.some((_, i) => schema.field_is_variable[i]);
+            if (!hasVariableFields) return '';
+
+            let html = '<div class="variable-controls">';
+            html += '<div style="color: #4ec9b0; font-weight: bold; margin-bottom: 10px;">Variable Field Sizes</div>';
+
+            schema.field_names.forEach((name, i) => {
+                if (schema.field_is_variable[i]) {
+                    const capacity = schema.capacities ? schema.capacities[i] : 0;
+                    const currentSize = variableFieldSizes[i] || capacity;
+                    const color = FIELD_COLORS[i % FIELD_COLORS.length];
+
+                    html += `<div class="control-row">`;
+                    html += `<div class="control-label" style="color: ${color};">`;
+                    html += `<span class="field-marker" style="background: ${color}; padding: 2px 6px; margin-right: 8px;">░</span>`;
+                    html += `${name}</div>`;
+                    html += `<input type="range" class="control-slider" `;
+                    html += `min="0" max="${capacity}" value="${currentSize}" `;
+                    html += `data-field-index="${i}" onInput="updateFieldSize(${i}, this.value)">`;
+                    html += `<div class="control-value" id="size-${i}">${currentSize} / ${capacity}</div>`;
+                    html += `</div>`;
+                }
+            });
+
+            html += '<div class="animation-controls">';
+            html += '<button class="control-button" onclick="startAnimation()">▶ Animate</button>';
+            html += '<button class="control-button" onclick="stopAnimation()">⏸ Stop</button>';
+            html += '<button class="control-button" onclick="resetSizes()">⟲ Reset to Max</button>';
+            html += '</div>';
+            html += '</div>';
+
+            return html;
+        }
+
+        // Update field size and refresh displays
+        function updateFieldSize(fieldIndex, newSize) {
+            variableFieldSizes[fieldIndex] = parseInt(newSize);
+            const schema = selectedSchema;
+            const capacity = schema.capacities ? schema.capacities[fieldIndex] : 0;
+
+            // Update display
+            document.getElementById(`size-${fieldIndex}`).textContent = `${newSize} / ${capacity}`;
+            document.getElementById('currentPackedSize').textContent = `${calculateCurrentPackedSize(schema)} bytes`;
+
+            // Refresh serialized layout
+            const serializedContainer = document.querySelector('[data-layout="serialized"]');
+            if (serializedContainer) {
+                serializedContainer.innerHTML = renderMemoryLayout(schema, true);
+            }
+        }
+
+        // Animation functions
+        function startAnimation() {
+            if (animationId) return;
+
+            const schema = selectedSchema;
+            const variableFields = [];
+            schema.field_names.forEach((name, i) => {
+                if (schema.field_is_variable[i]) {
+                    variableFields.push(i);
+                }
+            });
+
+            if (variableFields.length === 0) return;
+
+            let frame = 0;
+            animationId = setInterval(() => {
+                variableFields.forEach(fieldIndex => {
+                    const capacity = schema.capacities ? schema.capacities[fieldIndex] : 0;
+                    // Sinusoidal animation
+                    const size = Math.floor(capacity * (0.5 + 0.5 * Math.sin(frame * 0.1 + fieldIndex)));
+                    document.querySelector(`[data-field-index="${fieldIndex}"]`).value = size;
+                    updateFieldSize(fieldIndex, size);
+                });
+                frame++;
+            }, 100);
+        }
+
+        function stopAnimation() {
+            if (animationId) {
+                clearInterval(animationId);
+                animationId = null;
+            }
+        }
+
+        function resetSizes() {
+            stopAnimation();
+            const schema = selectedSchema;
+            schema.field_names.forEach((name, i) => {
+                if (schema.field_is_variable[i]) {
+                    const capacity = schema.capacities ? schema.capacities[i] : 0;
+                    variableFieldSizes[i] = capacity;
+                    const slider = document.querySelector(`[data-field-index="${i}"]`);
+                    if (slider) slider.value = capacity;
+                    updateFieldSize(i, capacity);
+                }
+            });
+        }
+
+        // Hover highlighting
+        function setupHoverHighlighting() {
+            // Handle elements with single field index
+            document.querySelectorAll('[data-field-index]').forEach(elem => {
+                elem.addEventListener('mouseenter', (e) => {
+                    const fieldIndex = parseInt(e.target.dataset.fieldIndex);
+                    highlightField(fieldIndex);
+                });
+                elem.addEventListener('mouseleave', () => {
+                    clearHighlight();
+                });
+            });
+            
+            // Handle blocks with multiple field indices
+            document.querySelectorAll('[data-block-fields]').forEach(elem => {
+                elem.addEventListener('mouseenter', (e) => {
+                    const fieldIndices = e.target.dataset.blockFields.split(',').map(idx => parseInt(idx));
+                    highlightFields(fieldIndices);
+                });
+                elem.addEventListener('mouseleave', () => {
+                    clearHighlight();
+                });
+            });
+        }
+
+        function highlightField(fieldIndex) {
+            highlightFields([fieldIndex]);
+        }
+
+        function highlightFields(fieldIndices) {
+            highlightedFieldIndex = fieldIndices[0];
+            
+            // Highlight all elements with any of these field indices
+            fieldIndices.forEach(fieldIndex => {
+                document.querySelectorAll(`[data-field-index="${fieldIndex}"]`).forEach(elem => {
+                    elem.classList.add('highlight-field');
+                });
+            });
+            
+            // Highlight blocks that contain any of these fields
+            document.querySelectorAll('[data-block-fields]').forEach(elem => {
+                const blockFields = elem.dataset.blockFields.split(',').map(idx => parseInt(idx));
+                if (blockFields.some(f => fieldIndices.includes(f))) {
+                    elem.classList.add('highlight-field');
+                }
+            });
+            
+            // Dim all other hoverable elements
+            document.querySelectorAll('.hoverable').forEach(elem => {
+                const elemFieldIndex = elem.dataset.fieldIndex;
+                const blockFields = elem.dataset.blockFields;
+                
+                let shouldDim = true;
+                if (elemFieldIndex !== undefined && fieldIndices.includes(parseInt(elemFieldIndex))) {
+                    shouldDim = false;
+                } else if (blockFields !== undefined) {
+                    const blockFieldArray = blockFields.split(',').map(idx => parseInt(idx));
+                    if (blockFieldArray.some(f => fieldIndices.includes(f))) {
+                        shouldDim = false;
+                    }
+                }
+                
+                if (shouldDim) {
+                    elem.classList.add('dimmed');
+                }
+            });
+        }
+
+        function clearHighlight() {
+            highlightedFieldIndex = null;
+            document.querySelectorAll('.highlight-field').forEach(elem => {
+                elem.classList.remove('highlight-field');
+            });
+            document.querySelectorAll('.dimmed').forEach(elem => {
+                elem.classList.remove('dimmed');
+            });
+        }
+    </script>
+</body>
+</html>

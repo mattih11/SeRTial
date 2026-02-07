@@ -59,17 +59,24 @@ using MyMessages = MessageCollection<
 >;
 
 // ============================================================================
-// Step 2: Generate schemas with one line!
+// Step 2: Generate schemas and data with one line!
 // ============================================================================
 
 int main(int argc, char* argv[]) {
-    std::string output_file = "my_schemas.json";
+    std::string data_file = "my_schemas.json";
+    std::string schema_file = "";  // Optional - only if you want JSON Schema too
+    
     if (argc > 1) {
-        output_file = argv[1];
+        data_file = argv[1];
+    }
+    if (argc > 2) {
+        schema_file = argv[2];
     }
     
-    // One-liner schema generation!
-    bool success = SchemaGenerator<MyMessages>::write_verbose(output_file);
+    // Generate both layout data and (optionally) JSON Schema
+    // Data file: Actual metadata values (field_names, sizes, offsets, etc.)
+    // Schema file: JSON Schema type definitions (optional)
+    bool success = SchemaGenerator<MyMessages>::write_verbose(data_file, schema_file);
     
     return success ? 0 : 1;
 }

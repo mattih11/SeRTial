@@ -60,6 +60,17 @@ add_executable(${PROJECT_NAME} src/main.cpp)
 target_link_libraries(${PROJECT_NAME} PRIVATE sertial)
 
 # ============================================================================
+# CLI Tools
+# ============================================================================
+
+# sertial-inspect - CLI schema viewer (replaces Python CLI)
+add_executable(sertial-inspect 
+    tools/sertial-inspect/main.cpp
+)
+target_link_libraries(sertial-inspect PRIVATE sertial)
+target_include_directories(sertial-inspect PRIVATE tools/sertial-inspect)
+
+# ============================================================================
 # Test Executables
 # ============================================================================
 
@@ -137,22 +148,16 @@ add_custom_target(generate_schemas
     COMMENT "Generating message schemas..."
 )
 
-add_custom_target(visualize
-    COMMAND python3 ${CMAKE_SOURCE_DIR}/scripts/sertial-inspect ${CMAKE_SOURCE_DIR}/scripts/message_schemas.json
-    DEPENDS generate_schemas
-    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-    COMMENT "Visualizing message schemas..."
-)
-
-# Launch GUI schema viewer (generates schemas first)
+# Open HTML viewer in browser (generates schemas first)
 add_custom_target(viewer
     COMMAND ${CMAKE_COMMAND} -E echo "Generating schemas..."
-    COMMAND schema_example ${CMAKE_SOURCE_DIR}/scripts/message_schemas.json
-    COMMAND ${CMAKE_COMMAND} -E echo "Launching GUI viewer..."
-    COMMAND python3 ${CMAKE_SOURCE_DIR}/scripts/sertial-gui ${CMAKE_SOURCE_DIR}/scripts/message_schemas.json
+    COMMAND schema_example
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/my_schemas.json ${CMAKE_SOURCE_DIR}/examples/schemas/example_schemas.json
+    COMMAND ${CMAKE_COMMAND} -E echo "Schema generated: examples/schemas/example_schemas.json"
+    COMMAND ${CMAKE_COMMAND} -E echo "Open tools/sertial-inspect/viewer.html in your browser to view"
     DEPENDS schema_example
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-    COMMENT "Generating schemas and launching GUI viewer..."
+    COMMENT "Generating schemas for HTML viewer..."
 )
 
 # ============================================================================
@@ -171,13 +176,21 @@ install(DIRECTORY examples/defines examples/messages
     FILES_MATCHING PATTERN "*.hpp"
 )
 
-# Install Python scripts as executables
-install(PROGRAMS scripts/sertial-inspect
-    DESTINATION ${CMAKE_INSTALL_BINDIR}
+# Install C++ CLI tool
+install(TARGETS sertial-inspect
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
-install(PROGRAMS scripts/sertial-gui
-    DESTINATION ${CMAKE_INSTALL_BINDIR}
+# Install HTML viewer and example schemas
+install(DIRECTORY tools/sertial-inspect
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/sertial
+    FILES_MATCHING 
+    PATTERN "*.html"
+    PATTERN "*.md"
+)
+
+install(FILES examples/schemas/example_schemas.json
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/sertial/examples
 )
 
 # Install CMake package configuration

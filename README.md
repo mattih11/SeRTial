@@ -54,7 +54,18 @@ You should have received a copy of the GNU General Public License along with thi
 
 **Key Achievement**: RingBuffer returns 1-2 spans based on wrap-around state, fixed_vector returns 1 span (contiguous). Schema shows exactly how many memcpy operations each container needs.
 
-### 📋 Future Work (Phase 4+)
+### ✅ Phase 4: Reflector-Based Schema Export (Complete)
+- **Zero-Boilerplate Introspection**: Compile-time metadata automatically exposed via `rfl::Reflector`
+- **Container Reflectors**: `fixed_vector`, `fixed_string`, `RingBuffer` teach reflect-cpp how to generate schemas
+- **StructLayout Reflector**: Single source exports all metadata (20+ fields) with one line: `rfl::json::to_schema<StructLayout<T>>()`
+- **Compile-Time Safeguards**: Field count assertions, member existence checks prevent synchronization bugs
+- **No Runtime Parsing**: Schema generation is direct - no manual JSON manipulation needed
+
+**Key Innovation**: Teaching reflect-cpp to "see" our compile-time metadata eliminates ~300 lines of manual extraction code while providing stronger type safety and automatic field name/type introspection.
+
+**See**: `docs/REFLECTOR_BASED_SCHEMA.md` for the complete architecture and design rationale.
+
+### 📋 Future Work (Phase 5+)
 - Cross-platform serialization (endianness handling, portable padding)
 - Nested container support (fixed_vector<fixed_vector<T, M>, N>)
 - Performance profiling tools
@@ -128,9 +139,8 @@ This installs:
 - **Headers**: `/usr/local/include/sertial/` - All library headers
 - **Examples**: `/usr/local/include/sertial/examples/` - Example message types for reference
 - **CMake Config**: `/usr/local/lib/cmake/SeRTial/` - For `find_package(SeRTial)`
-- **Tools**: `/usr/local/bin/` - Python inspection tools:
-  - `sertial-inspect` - CLI schema visualizer
-  - `sertial-gui` - GUI schema viewer
+- **CLI Tool**: `/usr/local/bin/sertial-inspect` - Terminal-based schema inspection
+- **HTML Viewer**: `/usr/local/share/sertial/sertial-inspect/viewer.html` - Interactive browser-based viewer
 
 ### Using Installed SeRTial
 
@@ -143,17 +153,19 @@ target_link_libraries(your_target PRIVATE SeRTial::sertial)
 
 ### Using the Inspection Tools
 
-After installation, the Python tools are available system-wide:
+After installation:
 
 ```bash
 # Generate schema from your app
 ./your_app --generate-schema my_schemas.json
 
-# Inspect via CLI
+# Inspect via CLI (terminal-based)
 sertial-inspect my_schemas.json --summary
+sertial-inspect my_schemas.json --message "TypeName"
 
-# Launch GUI viewer
-sertial-gui my_schemas.json
+# View in browser (interactive HTML viewer)
+# Open /usr/local/share/sertial/sertial-inspect/viewer.html in your browser
+# Use file picker or URL parameter: viewer.html?schema=path/to/schemas.json
 ```
 
 ## Running Tests
@@ -171,6 +183,44 @@ cd build
 # Run all tests
 make run_tests
 ```
+
+## Interactive Schema Viewer
+
+SeRTial includes a web-based interactive schema viewer for visualizing your message structures:
+
+**[🔍 Launch Interactive Viewer](https://mattih11.github.io/SeRTial/tools/sertial-inspect/viewer.html?schema=https://raw.githubusercontent.com/mattih11/SeRTial/main/examples/schemas/example_schemas.json)**
+
+### Features
+- 🎨 **Visual Memory Layouts**: See struct vs. serialized layout side-by-side
+- 📊 **Variable Field Controls**: Interactive sliders to adjust runtime sizes
+- 🎬 **Animation Mode**: Watch how packed size changes dynamically
+- 🔦 **Hover Highlighting**: Highlight fields across table, layouts, and operations
+- 📂 **Collapsible Sections**: Fold/unfold different visualizations
+- 🎯 **Block Operations**: See exact memcpy operations for serialize/deserialize
+
+### Usage
+
+```bash
+# Generate schema from your types
+cd build
+./schema_example  # Creates my_schemas.json
+cp my_schemas.json ../examples/schemas/example_schemas.json
+
+# Option 1: View in browser (no server needed for local files)
+# Open tools/sertial-inspect/viewer.html in your browser
+# Use file picker to load schema JSON
+
+# Option 2: Serve locally for URL parameter support
+cd ../tools/sertial-inspect
+python3 -m http.server 8080
+# Open: http://localhost:8080/viewer.html?schema=../../examples/schemas/example_schemas.json
+
+# Option 3: Use CLI tool for terminal viewing
+cd ../../build
+./sertial-inspect ../examples/schemas/example_schemas.json --summary
+```
+
+See [`tools/sertial-inspect/README.md`](tools/sertial-inspect/README.md) for detailed usage, URL parameters, and GitHub Pages embedding instructions.
 
 ## Examples Guide
 
@@ -533,9 +583,11 @@ SeRTial/
 │   ├── test_padding.cpp         # Padding analysis tests
 │   ├── test_endianness.cpp      # Endianness conversion tests
 │   └── test_hybrid_binary.cpp   # Block-based serialization and variable-size tests
-└── scripts/
-    ├── sertial-inspect          # CLI schema visualizer
-    └── sertial-gui              # GUI schema visualizer
+└── tools/
+    └── sertial-inspect/
+        ├── viewer.html          # Interactive browser-based viewer
+        ├── README.md            # Viewer documentation
+        └── main.cpp             # C++ CLI tool source
 ```
 
 ## Architecture
@@ -626,13 +678,39 @@ The example includes timing measurements for:
 
 ## Introspection & Visualization
 
-SeRTial includes powerful tools to inspect and visualize your message types at runtime.
+SeRTial provides **zero-boilerplate introspection** through an innovative reflector-based schema system. Your compile-time metadata is automatically exported to JSON with complete type information - no manual code required.
+
+### How It Works: The Reflector Magic
+
+SeRTial uses `rfl::Reflector` specializations to teach reflect-cpp how to "see" compile-time metadata:
+
+1. **Container Reflectors** (`include/sertial/containers/reflectors.hpp`):
+   - `fixed_vector<T,N>` → reflected as `std::vector<T>` for schemas
+   - `fixed_string<N>` → reflected as `std::string`
+   - `RingBuffer<T,N>` → reflected as `std::vector<T>`
+   
+2. **StructLayout Reflector** (`include/sertial/core/layout/struct_layout_reflector.hpp`):
+   - Exposes all 20+ compile-time metadata fields automatically
+   - Field names, types, sizes, offsets, capacities, block counts, packed sizes
+   - Includes nested schema of the actual type T
+   
+3. **One-Line Export** (`include/sertial/integration/schema_export.hpp`):
+   ```cpp
+   template<typename T>
+   std::string export_schema() {
+       return rfl::json::to_schema<StructLayout<T>>();  // That's it!
+   }
+   ```
+
+**Result**: Complete JSON schemas with all metadata - field names, types, offsets, capacities, block execution order - generated automatically from your C++ types.
+
+**See `docs/REFLECTOR_BASED_SCHEMA.md`** for the complete architecture, comparison with manual approaches, and why this is a breakthrough in C++ introspection.
 
 ### Workflow: Schema Generation and Viewing
 
 1. **Schema Generation**: The C++ example `schema_example.cpp` (or the `make generate_schemas` target) generates a JSON schema file (typically `message_schemas.json`) describing all registered message types, including field names, types, sizes, offsets, padding, and memcpy regions.
 
-2. **Visualization**: The viewer scripts (`scripts/sertial-inspect` for CLI, `scripts/sertial-gui` for GUI) read this JSON schema file to provide interactive or terminal-based exploration of your message layouts.
+2. **Visualization**: The viewer tools (C++ CLI tool `sertial-inspect` or HTML viewer `viewer.html`) read this JSON schema file to provide interactive or terminal-based exploration of your message layouts.
 
 3. **Automated Workflow**: The `make viewer` target automates this process:
     - Runs the schema generator to produce the latest `message_schemas.json`
@@ -654,18 +732,19 @@ You can also generate schemas and launch viewers manually:
 
 ```bash
 # Generate schema JSON
-./schema_example ../scripts/message_schemas.json
+./schema_example  # Creates my_schemas.json
+cp my_schemas.json ../examples/schemas/example_schemas.json
 
-# Launch GUI viewer
-python3 ../scripts/sertial-gui ../scripts/message_schemas.json
+# View in browser
+# Open ../tools/sertial-inspect/viewer.html in your browser
 
-# Or use the CLI viewer
-python3 ../scripts/sertial-inspect ../scripts/message_schemas.json --summary
+# Or use the CLI tool
+./sertial-inspect ../examples/schemas/example_schemas.json --summary
 ```
 
 ### GUI Viewer Features
 
-The GUI viewer (`scripts/sertial-gui`) provides:
+The HTML viewer (`tools/sertial-inspect/viewer.html`) provides:
 
 - **Message Browser**: Browse all message types by category
   - `[1]` = Single memcpy (fixed-size, fastest)
@@ -705,13 +784,13 @@ For terminal-based inspection:
 
 ```bash
 # Summary of all messages
-python3 scripts/sertial-inspect scripts/message_schemas.json --summary
+sertial-inspect schemas.json --summary
 
 # Detailed view of specific message
-python3 scripts/sertial-inspect scripts/message_schemas.json --message Header
+sertial-inspect schemas.json --message "Header<>"
 
 # All messages with full details
-python3 scripts/sertial-inspect scripts/message_schemas.json --all
+sertial-inspect schemas.json --all
 ```
 
 
