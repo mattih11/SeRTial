@@ -295,100 +295,128 @@ No manual trait specializations required!
 ### Unit Tests
 
 ```cpp
-#include <catch2/catch_test_macros.hpp>
 #include <sertial/sertial.hpp>
+#include "../test/test_framework.hpp"  // SeRTial's custom test framework
 
-TEST_CASE("my_container serialization") {
-    SECTION("Empty container") {
-        my_container<int, 10> container;
-        
-        auto buffer = sertial::serialize(container);
-        auto restored = sertial::deserialize<my_container<int, 10>>(buffer.view());
-        
-        REQUIRE(restored.has_value());
-        REQUIRE(restored->size() == 0);
-        REQUIRE(restored->empty());
-    }
+struct MyContainerTests : TestSuite<MyContainerTests> {
+    static constexpr const char* name = "my_container Serialization Tests";
     
-    SECTION("With elements") {
-        my_container<float, 10> container;
-        container.push_back(1.5f);
-        container.push_back(2.5f);
-        container.push_back(3.5f);
-        
-        auto buffer = sertial::serialize(container);
-        // Wire format: [length:4][elem0:4][elem1:4][elem2:4] = 16 bytes
-        REQUIRE(buffer.size() == 16);
-        
-        auto restored = sertial::deserialize<my_container<float, 10>>(buffer.view());
-        REQUIRE(restored.has_value());
-        REQUIRE(restored->size() == 3);
-        REQUIRE((*restored)[0] == 1.5f);
-        REQUIRE((*restored)[1] == 2.5f);
-        REQUIRE((*restored)[2] == 3.5f);
-    }
-    
-    SECTION("Full capacity") {
-        my_container<uint8_t, 5> container;
-        for (int i = 0; i < 5; ++i) {
-            container.push_back(i);
+    static bool run() {
+        // Test: Empty container
+        {
+            my_container<int, 10> container;
+            
+            auto buffer = sertial::serialize(container);
+            auto restored = sertial::deserialize<my_container<int, 10>>(buffer.view());
+            
+            TEST_ASSERT(restored.has_value(), "Deserialization should succeed");
+            TEST_ASSERT_EQ(restored->size(), 0, "Size should be 0");
+            TEST_ASSERT(restored->empty(), "Container should be empty");
         }
         
-        auto buffer = sertial::serialize(container);
-        auto restored = sertial::deserialize<my_container<uint8_t, 5>>(buffer.view());
+        // Test: With elements
+        {
+            my_container<float, 10> container;
+            container.push_back(1.5f);
+            container.push_back(2.5f);
+            container.push_back(3.5f);
+            
+            auto buffer = sertial::serialize(container);
+            // Wire format: [length:4][elem0:4][elem1:4][elem2:4] = 16 bytes
+            TEST_ASSERT_EQ(buffer.size(), 16, "Buffer size should be 16 bytes");
+            
+            auto restored = sertial::deserialize<my_container<float, 10>>(buffer.view());
+            TEST_ASSERT(restored.has_value(), "Deserialization should succeed");
+            TEST_ASSERT_EQ(restored->size(), 3, "Size should be 3");
+            TEST_ASSERT_EQ((*restored)[0], 1.5f, "Element 0 should match");
+            TEST_ASSERT_EQ((*restored)[1], 2.5f, "Element 1 should match");
+            TEST_ASSERT_EQ((*restored)[2], 3.5f, "Element 2 should match");
+        }
         
-        REQUIRE(restored->size() == 5);
-        REQUIRE(restored->full());
+        // Test: Full capacity
+        {
+            my_container<uint8_t, 5> container;
+            for (int i = 0; i < 5; ++i) {
+                container.push_back(i);
+            }
+            
+            auto buffer = sertial::serialize(container);
+            auto restored = sertial::deserialize<my_container<uint8_t, 5>>(buffer.view());
+            
+            TEST_ASSERT_EQ(restored->size(), 5, "Size should be 5");
+            TEST_ASSERT(restored->full(), "Container should be full");
+        }
+        
+        return true;
     }
-}
+};
 
-TEST_CASE("my_container concept compliance") {
-    // Compile-time checks
-    static_assert(sertial::SerializableContainer<my_container<int, 10>>);
-    static_assert(sertial::container_max_size_v<my_container<int, 10>> == 10);
+struct ConceptTests : TestSuite<ConceptTests> {
+    static constexpr const char* name = "my_container Concept Compliance";
     
-    using Meta = sertial::container_metadata<my_container<float, 20>>;
-    static_assert(std::is_same_v<Meta::element_type, float>);
-    static_assert(Meta::max_size == 20);
-    static_assert(Meta::element_size == 4);
-    static_assert(Meta::is_variable_length);
-}
+    static bool run() {
+        // Compile-time checks
+        static_assert(sertial::SerializableContainer<my_container<int, 10>>);
+        static_assert(sertial::container_max_size_v<my_container<int, 10>> == 10);
+        
+        using Meta = sertial::container_metadata<my_container<float, 20>>;
+        static_assert(std::is_same_v<Meta::element_type, float>);
+        static_assert(Meta::max_size == 20);
+        static_assert(Meta::element_size == 4);
+        static_assert(Meta::is_variable_length);
+        
+        return true;
+    }
+};
 
-TEST_CASE("my_container in structs") {
-    struct Message {
-        uint32_t id;
-        my_container<int, 100> data;
-    };
+struct StructIntegrationTests : TestSuite<StructIntegrationTests> {
+    static constexpr const char* name = "my_container in Structs";
     
-    Message msg;
-    msg.id = 42;
-    msg.data.push_back(1);
-    msg.data.push_back(2);
-    
-    auto buffer = sertial::serialize(msg);
-    auto restored = sertial::deserialize<Message>(buffer.view());
-    
-    REQUIRE(restored.has_value());
-    REQUIRE(restored->id == 42);
-    REQUIRE(restored->data.size() == 2);
+    static bool run() {
+        struct Message {
+            uint32_t id;
+            my_container<int, 100> data;
+        };
+        
+        Message msg;
+        msg.id = 42;
+        msg.data.push_back(1);
+        msg.data.push_back(2);
+        
+        auto buffer = sertial::serialize(msg);
+        auto restored = sertial::deserialize<Message>(buffer.view());
+        
+        TEST_ASSERT(restored.has_value(), "Deserialization should succeed");
+        TEST_ASSERT_EQ(restored->id, 42, "ID should match");
+        TEST_ASSERT_EQ(restored->data.size(), 2, "Data size should be 2");
+        
+        return true;
+    }
+};
+
+int main() {
+    return TestRunner::run<MyContainerTests, ConceptTests, StructIntegrationTests>();
 }
 ```
 
 ### Integration Tests
 
+Schema generation works automatically once your container satisfies `SerializableContainer`:
+
 ```cpp
-TEST_CASE("Schema generation for my_container") {
-    struct TestType {
-        my_container<float, 50> values;
-    };
-    
-    // Generate schema
-    std::string schema = sertial::export_layout_data<TestType>();
-    
-    // Verify schema contains container metadata
-    REQUIRE(schema.find("my_container") != std::string::npos);
-    REQUIRE(schema.find("50") != std::string::npos);  // max_size
-}
+#include <sertial/integration/schema_export.hpp>
+
+struct TestType {
+    my_container<float, 50> values;
+};
+
+// Generate schema - automatically includes container metadata
+std::string schema = sertial::export_layout_data<TestType>();
+
+// Schema will contain:
+// - "container_type": "my_container"
+// - "max_elements": 50
+// - "is_variable_length": true
 ```
 
 ---
@@ -405,7 +433,7 @@ Physical: [6, 7, _, _, _, 3, 4, 5]
            ^head         ^tail
 ```
 
-For such containers, specialize `serialization_view_provider`:
+Specialize `serialization_view_provider` to return multiple memory spans:
 
 ### Example: Circular Buffer
 

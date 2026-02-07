@@ -295,7 +295,7 @@ int main() {
 3. Drop JSON file or paste content
 4. Explore structure interactively
 
-**Live demo**: [https://mattih11.github.io/SeRTial/tools/sertial-inspect/viewer.html](https://mattih11.github.io/SeRTial/tools/sertial-inspect/viewer.html)
+**Live demo**: [https://mattih11.github.io/SeRTial/tools/sertial-inspect/viewer.html?schema=https://raw.githubusercontent.com/mattih11/SeRTial/main/examples/schemas/example_schemas.json](https://mattih11.github.io/SeRTial/tools/sertial-inspect/viewer.html?schema=https://raw.githubusercontent.com/mattih11/SeRTial/main/examples/schemas/example_schemas.json)
 
 **See [SCHEMA_VIEWER.md](SCHEMA_VIEWER.md) for detailed viewer documentation.**
 

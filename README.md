@@ -115,7 +115,7 @@ target_link_libraries(your_target PRIVATE SeRTial::SeRTial)
 
 ### Tools
 - **[CLI Tool README](tools/sertial-inspect/README.md)** - Terminal-based schema inspection
-- **[Interactive Viewer](https://mattih11.github.io/SeRTial/tools/sertial-inspect/viewer.html)** - Live demo
+- **[Interactive Viewer](https://mattih11.github.io/SeRTial/tools/sertial-inspect/viewer.html?schema=https://raw.githubusercontent.com/mattih11/SeRTial/main/examples/schemas/example_schemas.json)** - Live demo
 
 ---
 
@@ -139,7 +139,7 @@ SeRTial provides **bounded containers** for real-time safe serialization:
 
 Visualize your message layouts interactively:
 
-**Live Demo**: [https://mattih11.github.io/SeRTial/tools/sertial-inspect/viewer.html](https://mattih11.github.io/SeRTial/tools/sertial-inspect/viewer.html)
+**Live Demo**: [https://mattih11.github.io/SeRTial/tools/sertial-inspect/viewer.html?schema=https://raw.githubusercontent.com/mattih11/SeRTial/main/examples/schemas/example_schemas.json](https://mattih11.github.io/SeRTial/tools/sertial-inspect/viewer.html?schema=https://raw.githubusercontent.com/mattih11/SeRTial/main/examples/schemas/example_schemas.json)
 
 Generate schemas:
 ```bash
