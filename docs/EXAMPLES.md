@@ -700,10 +700,10 @@ Schema generation and export:
 - Multiple message types
 - Interactive viewer integration
 
-**Build and run**:
+Build and run:
 ```bash
 cd build
-./schema_example > my_schemas.json
+./schema_example my_schemas.json
 # Open tools/sertial-inspect/viewer.html with my_schemas.json
 ```
 

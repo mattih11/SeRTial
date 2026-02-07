@@ -559,7 +559,7 @@ std::cout << "Has variable fields: " << Layout::has_variable_fields << "\n";
 **Generate schema for analysis**:
 ```bash
 cd build
-./schema_example > my_schema.json
+./schema_example my_schema.json
 # Open in tools/sertial-inspect/viewer.html
 ```
 
