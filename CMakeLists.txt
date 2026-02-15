@@ -55,6 +55,10 @@ target_link_libraries(serialization_example PRIVATE sertial_examples)
 add_executable(ring_buffer_example examples/ring_buffer_example.cpp)
 target_link_libraries(ring_buffer_example PRIVATE sertial)
 
+# Fixed string compile-time example - constexpr string operations
+add_executable(fixed_string_compile_time examples/fixed_string_compile_time.cpp)
+target_link_libraries(fixed_string_compile_time PRIVATE sertial)
+
 # Main demo executable
 add_executable(${PROJECT_NAME} src/main.cpp)
 target_link_libraries(${PROJECT_NAME} PRIVATE sertial)
