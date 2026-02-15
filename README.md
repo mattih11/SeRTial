@@ -15,6 +15,7 @@
 - **Zero Allocation**: Stack-only buffers with compile-time size computation
 - **Compile-Time Reflection**: Automatic struct analysis via [reflect-cpp](https://github.com/getml/reflect-cpp)
 - **Bounded Containers**: `fixed_vector<T,N>`, `fixed_string<N>`, `RingBuffer<T,N>` with runtime sizes
+- **Compile-Time Strings**: Full constexpr support with auto size deduction (`"text"_fs`, CTAD, NTTP)
 - **Block-Based Serialization**: Optimal memory copying via `StructLayout<T>` analysis
 - **Interactive Viewer**: HTML-based schema visualization tool
 - **Simple API**: `serialize(obj)` / `deserialize<T>(data)` - zero boilerplate
@@ -127,13 +128,20 @@ target_link_libraries(your_target PRIVATE SeRTial::SeRTial)
 
 SeRTial provides **bounded containers** for real-time safe serialization:
 
-| Container | Purpose | Capacity | Size |
-|-----------|---------|----------|------|
-| `fixed_vector<T, N>` | Dynamic list | Fixed | Variable |
-| `fixed_string<N>` | Text | Fixed | Variable |
-| `RingBuffer<T, N>` | Circular buffer | Fixed | Variable |
-| `static_buffer<N>` | Raw bytes | Fixed | Variable |
-| `std::array<T, N>` | Fixed-size array | Fixed | **Fixed** |
+| Container | Purpose | Capacity | Size | Compile-Time |
+|-----------|---------|----------|------|--------------|
+| `fixed_vector<T, N>` | Dynamic list | Fixed | Variable | - |
+| `fixed_string<N>` | Text | Fixed | Variable | **Full constexpr** |
+| `RingBuffer<T, N>` | Circular buffer | Fixed | Variable | - |
+| `static_buffer<N>` | Raw bytes | Fixed | Variable | - |
+| `std::array<T, N>` | Fixed-size array | Fixed | **Fixed** | Full constexpr |
+
+**NEW**: `fixed_string` now supports full compile-time construction:
+```cpp
+constexpr fixed_string name{"SeRTial"};  // Auto-deduces fixed_string<7>
+using namespace sertial::literals;
+auto msg = "RealTime"_fs;                // User-defined literal
+```
 
 **See**: [Container Guide](docs/CONTAINER_GUIDE.md) for complete reference
 
@@ -216,6 +224,31 @@ auto buffer = sertial::serialize(data);
 // Size: 8 + 4 + 4 + 2*4 = 24 bytes (not 8 + 4 + 404!)
 ```
 
+### With Compile-Time Strings (NEW)
+
+```cpp
+#include <sertial/sertial.hpp>
+#include <sertial/containers/fixed_string.hpp>
+
+// CTAD - auto size deduction
+constexpr sertial::fixed_string device{"Sensor_42"};  // fixed_string<9>
+
+// User-defined literals
+using namespace sertial::literals;
+
+struct Config {
+    decltype(device) name;
+    uint32_t rate_hz;
+};
+
+Config config{
+    .name = "Sensor_42"_fs,  // Compile-time construction
+    .rate_hz = 100
+};
+
+auto buffer = sertial::serialize(config);
+```
+
 **See**: [Examples Guide](docs/EXAMPLES.md) for more patterns
 
 ---
@@ -230,6 +263,7 @@ auto buffer = sertial::serialize(data);
 - C++ CLI tool (replaces Python scripts)
 - All Python dependencies removed
 - Unified container registration via `SerializableContainer` concept
+- **NEW**: Full constexpr support for fixed_string with compile-time string literals
 
 **Phase 5 Roadmap**:
 - Cross-platform serialization (endianness handling)

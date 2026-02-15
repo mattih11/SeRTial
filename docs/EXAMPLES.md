@@ -202,6 +202,53 @@ int main() {
 
 ---
 
+### fixed_string - Compile-Time Construction (NEW)
+
+**NEW in v2.0.0**: Full constexpr support with automatic size deduction
+
+```cpp
+#include <sertial/sertial.hpp>
+#include <sertial/containers/fixed_string.hpp>
+
+// CTAD - auto-deduces size from string literal
+constexpr sertial::fixed_string name{"SeRTial"};  // fixed_string<7>
+static_assert(name.size() == 7);
+static_assert(name.capacity() == 7);
+
+// User-defined literal
+using namespace sertial::literals;
+constexpr auto msg = "RealTime"_fs;  // fixed_string<8>
+static_assert(msg.size() == 8);
+
+// NTTP (Non-Type Template Parameter)
+constexpr auto project = sertial::make_fixed<"Library">();  // fixed_string<7>
+
+// Use in compile-time configuration
+struct Config {
+    sertial::fixed_string<32> name;
+    uint32_t timeout_ms;
+    bool enabled;
+};
+
+constexpr Config runtime_config{
+    .name = "Sensor"_fs,      // Compile-time construction
+    .timeout_ms = 100,
+    .enabled = true
+};
+
+int main() {
+    // Runtime copy of compile-time config
+    Config active = runtime_config;
+    
+    auto buffer = sertial::serialize(active);
+    std::cout << "Config size: " << buffer.size() << " bytes\n";
+    
+    return 0;
+}
+```
+
+---
+
 ### RingBuffer - Circular History
 
 ```cpp
@@ -678,6 +725,21 @@ Comprehensive demonstration of all API features:
 ```bash
 cd build
 ./serialization_example
+```
+
+### fixed_string_compile_time.cpp
+
+Compile-time string literal features (NEW in v2.0.0):
+- CTAD (auto size deduction)
+- NTTP (non-type template parameters)
+- User-defined literals
+- Constexpr operations
+- String literal integration
+
+**Build and run**:
+```bash
+cd build
+./fixed_string_compile_time
 ```
 
 ### ring_buffer_example.cpp

@@ -217,7 +217,7 @@ auto buffer = sertial::serialize(data);
 
 ### fixed_string
 
-Variable-length string with compile-time capacity:
+Variable-length string with compile-time capacity and full constexpr support (NEW in v2.0.0):
 
 ```cpp
 #include <sertial/containers/fixed_string.hpp>
@@ -234,6 +234,22 @@ log.message = "System started";  // Only 14 chars + null terminator
 auto buffer = sertial::serialize(log);
 // Size: 8 (timestamp) + 4 (length) + 15 (string data) = 27 bytes
 ```
+
+**NEW: Compile-time construction with auto size deduction**:
+
+```cpp
+// CTAD - auto-deduces size
+constexpr sertial::fixed_string name{"SeRTial"};  // fixed_string<7>
+
+// User-defined literal
+using namespace sertial::literals;
+auto msg = "Status"_fs;  // fixed_string<6>
+
+// NTTP (Non-Type Template Parameter)
+constexpr auto id = sertial::make_fixed<"ID_123">();  // fixed_string<6>
+```
+
+See [CONTAINER_GUIDE.md](CONTAINER_GUIDE.md#fixed_string) for all compile-time construction methods.
 
 ### RingBuffer
 

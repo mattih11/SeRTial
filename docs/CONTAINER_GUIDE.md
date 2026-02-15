@@ -160,7 +160,7 @@ auto buffer = sertial::serialize(m);
 
 ## fixed_string
 
-**Variable-length string with compile-time capacity**
+**Variable-length string with compile-time capacity and full constexpr support**
 
 ```cpp
 #include <sertial/containers/fixed_string.hpp>
@@ -173,7 +173,11 @@ template<std::size_t MaxSize>
 class fixed_string;
 ```
 
-### Constructor
+**NEW in v2.0.0**: Full compile-time construction with automatic size deduction!
+
+### Construction Methods
+
+#### Runtime Construction
 
 ```cpp
 fixed_string<256> str;                  // Empty string
@@ -183,16 +187,52 @@ fixed_string<100> str4(std::string{"Test"});  // From std::string
 fixed_string<50> str5(5, 'x');          // 5 copies of 'x': "xxxxx"
 ```
 
+#### Compile-Time Construction (NEW)
+
+```cpp
+// Method 1: CTAD (Class Template Argument Deduction)
+constexpr fixed_string name{"SeRTial"};  // Deduces fixed_string<7> automatically
+
+// Method 2: Helper function
+constexpr auto str = fixed_string_literal("Hello");  // fixed_string<5>
+
+// Method 3: NTTP (Non-Type Template Parameter, C++20)
+constexpr auto msg = make_fixed<"World">();  // fixed_string<5>
+
+// Method 4: User-defined literal
+using namespace sertial::literals;
+auto data = "RealTime"_fs;  // fixed_string<8>
+
+// Method 5: Explicit capacity with make_fixed_string
+constexpr auto buffer = make_fixed_string<64>("Init");  // fixed_string<64> with "Init"
+```
+
+#### Compile-Time Operations
+
+```cpp
+// All operations are constexpr-compatible!
+constexpr fixed_string greeting{"Hello"};
+constexpr std::string_view view = greeting;  // Zero-cost conversion
+constexpr std::size_t len = greeting.size();  // 5
+constexpr bool is_empty = greeting.empty();   // false
+
+// Compile-time validation
+static_assert(greeting.size() == 5);
+static_assert(!greeting.empty());
+```
+
 ### Capacity Methods
 
 ```cpp
-size_t size() const;          // Current string length (no null terminator)
+size_t size() const;          // Current string length (excluding null terminator)
 size_t length() const;        // Same as size()
-size_t capacity() const;      // Maximum capacity (MaxSize - 1, reserves 1 for '\0')
+size_t capacity() const;      // Maximum capacity (always MaxSize)
 size_t max_size() const;      // Same as capacity()
 bool empty() const;           // true if size() == 0
-bool full() const;            // true if size() == capacity()
+bool full() const;            // true if size() >= capacity()
 ```
+
+**Note**: MaxSize does NOT include the null terminator (internal array is MaxSize + 1).
 
 ### Element Access
 
@@ -223,18 +263,48 @@ void append(std::string_view sv);        // Append string_view
 ### String Operations
 
 ```cpp
-std::string_view view() const;           // Get string_view (zero-copy)
-std::string to_string() const;           // Convert to std::string (copy)
+// Conversion (constexpr-compatible)
+operator std::string_view() const;       // Implicit zero-copy conversion
+std::string to_string() const;           // Explicit copy to std::string
+std::string str() const;                 // Same as to_string()
+
+// String queries (constexpr-compatible)
+bool starts_with(std::string_view sv) const;
+bool ends_with(std::string_view sv) const;
+bool contains(std::string_view sv) const;
+int compare(std::string_view sv) const;
 
 // Assignment
 fixed_string<N>& operator=(const char* str);
 fixed_string<N>& operator=(std::string_view sv);
 fixed_string<N>& operator=(const std::string& str);
 
-// Comparison
+// Comparison (constexpr-compatible)
 bool operator==(const fixed_string<N>& other) const;
 bool operator==(const char* str) const;
 bool operator==(std::string_view sv) const;
+bool operator<(const fixed_string<N>& other) const;  // Lexicographic
+```
+
+### Integration with reflect-cpp
+
+fixed_string works seamlessly with reflect-cpp's compile-time reflection:
+
+```cpp
+struct Config {
+    fixed_string<32> app_name;
+    fixed_string<64> version;
+    uint32_t build_number;
+};
+
+// Compile-time initialization
+constexpr Config cfg{
+    .app_name = fixed_string{"MyApp"},  // CTAD
+    .version = "2.0.0"_fs,              // User-defined literal
+    .build_number = 12345
+};
+
+// Works with rfl::Field<> and rfl::Literal<>
 ```
 
 ### Serialization
