@@ -7,6 +7,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <rfl.hpp>
 
 namespace sertial {
 
@@ -20,16 +21,19 @@ namespace sertial {
 /// 
 /// @par Compile-Time Construction:
 /// @code
-/// // Explicit size with braces (CTAD - Class Template Argument Deduction)
+/// // CTAD (Class Template Argument Deduction)
 /// constexpr fixed_string name{"SeRTial"};  // Deduces fixed_string<7>
 /// 
-/// // Auto-deduced size using helper functions
+/// // Helper functions
 /// constexpr auto str1 = fixed_string_literal("Hello");  // fixed_string<5>
 /// constexpr auto str2 = make_fixed<"World">();          // fixed_string<5> (C++20 NTTP)
 /// 
-/// // Using user-defined literal (C++20)
+/// // User-defined literal
 /// using namespace sertial::literals;
 /// auto str3 = "RealTime"_fs;  // fixed_string<8>
+/// 
+/// // reflect-cpp integration (C++20 NTTP)
+/// constexpr auto str4 = make_fixed<rfl::internal::StringLiteral{"Config"}>();  // fixed_string<6>
 /// @endcode
 /// 
 /// @par Runtime Construction:
@@ -138,6 +142,30 @@ public:
         constexpr size_type len = N - 1;  // Exclude null terminator
         std::copy_n(str, len, data_);
         size_ = len;
+        data_[size_] = '\0';
+    }
+    
+    /// @brief Compile-time constructor from rfl::internal::StringLiteral (reflect-cpp integration)
+    /// 
+    /// Enables integration with reflect-cpp's compile-time string literals:
+    /// @code
+    /// // Direct construction:
+    /// constexpr fixed_string<10> name{rfl::internal::StringLiteral{"field_name"}};
+    /// // Via make_fixed helper:
+    /// constexpr auto id = make_fixed<rfl::internal::StringLiteral{"sensor_id"}>();
+    /// @endcode
+    /// 
+    /// @tparam N Size of StringLiteral (including null terminator)
+    /// @param lit rfl::internal::StringLiteral instance
+    template<std::size_t N>
+    constexpr fixed_string(const rfl::internal::StringLiteral<N>& lit) : size_(0) {
+        // StringLiteral::length excludes null terminator
+        constexpr std::size_t len = N - 1;
+        static_assert(len <= MaxSize, "rfl::internal::StringLiteral string exceeds fixed_string capacity");
+        // Use string_view() which already excludes null terminator
+        auto sv = lit.string_view();
+        std::copy_n(sv.data(), sv.size(), data_);
+        size_ = sv.size();
         data_[size_] = '\0';
     }
     
@@ -516,6 +544,24 @@ struct StringLiteral {
 template<StringLiteral Lit>
 constexpr auto make_fixed() {
     return fixed_string<Lit.size>(Lit.value);
+}
+
+/// @brief Create fixed_string from rfl::internal::StringLiteral with auto-deduced size
+/// 
+/// Enables seamless integration with reflect-cpp's compile-time string literals:
+/// @code
+/// rfl::internal::StringLiteral lit{"field_name"};
+/// auto name = make_fixed(lit);  // fixed_string<10>
+/// @endcode
+/// 
+/// @tparam N Size of StringLiteral (including null terminator)
+/// @param lit rfl::internal::StringLiteral instance
+/// @return fixed_string with size automatically deduced from StringLiteral
+/// @note Useful for integrating with reflect-cpp's rfl::Field<> and rfl::Literal<> names
+template<std::size_t N>
+constexpr auto make_fixed(const rfl::internal::StringLiteral<N>& lit) {
+    // StringLiteral::length is constexpr and excludes null terminator
+    return fixed_string<rfl::internal::StringLiteral<N>::length>(lit);
 }
 
 /// @brief Create fixed_string with explicit capacity from string literal
