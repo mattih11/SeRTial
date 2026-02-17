@@ -287,7 +287,7 @@ public:
     }
     
     constexpr void push_back(char ch) {
-        if (size_ >= MaxSize - 1) {
+        if (size_ >= MaxSize) {
             throw std::length_error("fixed_string: push_back on full string");
         }
         data_[size_++] = ch;
@@ -337,7 +337,7 @@ public:
     }
     
     constexpr fixed_string& append(std::string_view sv) {
-        if (size_ + sv.size() >= MaxSize) {
+        if (size_ + sv.size() > MaxSize) {
             throw std::length_error("fixed_string: append exceeds max_size");
         }
         
@@ -487,6 +487,136 @@ constexpr bool operator>(const fixed_string<N>& lhs, const fixed_string<N>& rhs)
 template<std::size_t N>
 constexpr bool operator>=(const fixed_string<N>& lhs, const fixed_string<N>& rhs) noexcept {
     return std::string_view(lhs) >= std::string_view(rhs);
+}
+
+// ============================================================================
+// Concatenation Operators
+// ============================================================================
+
+/// @brief Concatenate two fixed_strings with compile-time size deduction
+/// 
+/// Creates a new fixed_string with capacity equal to the sum of both strings.
+/// Enables natural concatenation syntax:
+/// @code
+/// constexpr fixed_string<5> hello{"Hello"};
+/// constexpr fixed_string<6> world{" World"};
+/// constexpr auto result = hello + world;  // fixed_string<11>
+/// @endcode
+/// 
+/// @tparam N1 Capacity of left string
+/// @tparam N2 Capacity of right string
+/// @param lhs Left operand
+/// @param rhs Right operand
+/// @return fixed_string<N1 + N2> containing concatenated result
+/// @note Result capacity is sum of capacities, not sum of sizes
+/// @note Fully constexpr-compatible
+template<std::size_t N1, std::size_t N2>
+constexpr auto operator+(const fixed_string<N1>& lhs, const fixed_string<N2>& rhs) {
+    fixed_string<N1 + N2> result;
+    result.append(std::string_view(lhs));
+    result.append(std::string_view(rhs));
+    return result;
+}
+
+/// @brief Concatenate fixed_string with string_view (runtime only)
+/// 
+/// @code
+/// fixed_string<5> hello{"Hello"};
+/// std::string_view world = " World";
+/// auto result = hello + world;  // throws if combined size exceeds lhs capacity
+/// @endcode
+/// 
+/// @tparam N Capacity of fixed_string
+/// @param lhs fixed_string operand
+/// @param rhs string_view operand (size unknown at compile time)
+/// @return fixed_string<N> - reuses lhs capacity, throws if overflow
+/// @throws std::length_error if lhs.size() + rhs.size() > N
+/// @note string_view has no compile-time size, so result uses lhs capacity
+template<std::size_t N>
+auto operator+(const fixed_string<N>& lhs, std::string_view rhs) {
+    fixed_string<N> result{lhs};
+    result.append(rhs);  // Will throw if doesn't fit
+    return result;
+}
+
+/// @brief Concatenate string_view with fixed_string (runtime only)
+/// 
+/// @tparam N Capacity of fixed_string
+/// @param lhs string_view operand (size unknown at compile time)
+/// @param rhs fixed_string operand
+/// @return fixed_string<N> - reuses rhs capacity, throws if overflow
+/// @throws std::length_error if lhs.size() + rhs.size() > N
+/// @note string_view has no compile-time size, so result uses rhs capacity
+template<std::size_t N>
+auto operator+(std::string_view lhs, const fixed_string<N>& rhs) {
+    fixed_string<N> result;
+    result.append(lhs);
+    result.append(std::string_view(rhs));  // Will throw if doesn't fit
+    return result;
+}
+
+/// @brief Concatenate fixed_string with C-string literal
+/// 
+/// Deduces the literal size at compile time:
+/// @code
+/// constexpr fixed_string<5> hello{"Hello"};
+/// constexpr auto result = hello + " World";  // fixed_string<12>
+/// @endcode
+/// 
+/// @tparam N1 Capacity of fixed_string
+/// @tparam N2 Size of string literal (including null terminator)
+/// @param lhs fixed_string operand
+/// @param rhs C-string literal
+/// @return fixed_string<N1 + N2 - 1>
+template<std::size_t N1, std::size_t N2>
+constexpr auto operator+(const fixed_string<N1>& lhs, const char (&rhs)[N2]) {
+    fixed_string<N1 + N2 - 1> result;
+    result.append(std::string_view(lhs));
+    result.append(rhs);
+    return result;
+}
+
+/// @brief Concatenate C-string literal with fixed_string
+/// 
+/// @tparam N1 Size of string literal (including null terminator)
+/// @tparam N2 Capacity of fixed_string
+/// @param lhs C-string literal
+/// @param rhs fixed_string operand
+/// @return fixed_string<N1 - 1 + N2>
+template<std::size_t N1, std::size_t N2>
+constexpr auto operator+(const char (&lhs)[N1], const fixed_string<N2>& rhs) {
+    fixed_string<N1 - 1 + N2> result;
+    result.append(lhs);
+    result.append(std::string_view(rhs));
+    return result;
+}
+
+/// @brief Concatenate fixed_string with single character
+/// 
+/// @tparam N Capacity of fixed_string
+/// @param lhs fixed_string operand
+/// @param rhs Character to append
+/// @return fixed_string<N + 1>
+template<std::size_t N>
+constexpr auto operator+(const fixed_string<N>& lhs, char rhs) {
+    fixed_string<N + 1> result;
+    result.append(std::string_view(lhs));
+    result.push_back(rhs);
+    return result;
+}
+
+/// @brief Concatenate character with fixed_string
+/// 
+/// @tparam N Capacity of fixed_string
+/// @param lhs Character to prepend
+/// @param rhs fixed_string operand
+/// @return fixed_string<1 + N>
+template<std::size_t N>
+constexpr auto operator+(char lhs, const fixed_string<N>& rhs) {
+    fixed_string<1 + N> result;
+    result.push_back(lhs);
+    result.append(std::string_view(rhs));
+    return result;
 }
 
 // ============================================================================

@@ -59,6 +59,10 @@ target_link_libraries(ring_buffer_example PRIVATE sertial)
 add_executable(fixed_string_compile_time examples/fixed_string_compile_time.cpp)
 target_link_libraries(fixed_string_compile_time PRIVATE sertial)
 
+# Fixed string concatenation example - operator+ with size deduction
+add_executable(fixed_string_concatenation examples/fixed_string_concatenation.cpp)
+target_link_libraries(fixed_string_concatenation PRIVATE sertial)
+
 # Main demo executable
 add_executable(${PROJECT_NAME} src/main.cpp)
 target_link_libraries(${PROJECT_NAME} PRIVATE sertial)
