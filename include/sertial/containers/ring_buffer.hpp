@@ -356,6 +356,41 @@ public:
     }
     
     /**
+     * @brief Get writable reference to next back slot (zero-copy write)
+     * 
+     * Returns a direct reference to the storage location where the next
+     * element will be placed. This allows true zero-copy writes by avoiding
+     * any construction, copy, or move operations. Automatically advances
+     * the buffer and overwrites oldest element if full.
+     * 
+     * @return Reference to next storage slot (already default-constructed)
+     * @note O(1) time complexity
+     * @note Real-time safe: No allocation, no copy, no move
+     * 
+     * @example
+     * @code
+     * RingBuffer<LargeStruct, 100> buffer;
+     * auto& slot = buffer.emplace_back_in_place();
+     * slot.field1 = expensive_calculation();
+     * slot.field2 = another_calculation();
+     * // Element written directly to buffer storage - zero copies
+     * @endcode
+     */
+    constexpr reference emplace_back_in_place() noexcept {
+        size_type target = head_;
+        head_ = (head_ + 1) % MaxSize;
+        
+        if (size_ < MaxSize) {
+            ++size_;
+        } else {
+            // Buffer full - advance tail (overwrite oldest)
+            tail_ = (tail_ + 1) % MaxSize;
+        }
+        
+        return data_[target];
+    }
+    
+    /**
      * @brief Remove oldest element (front)
      * 
      * @note Undefined behavior if empty()

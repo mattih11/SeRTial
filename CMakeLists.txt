@@ -63,6 +63,10 @@ target_link_libraries(fixed_string_compile_time PRIVATE sertial)
 add_executable(fixed_string_concatenation examples/fixed_string_concatenation.cpp)
 target_link_libraries(fixed_string_concatenation PRIVATE sertial)
 
+# Fixed vector erase/remove example - filtering and element removal
+add_executable(fixed_vector_erase_remove examples/fixed_vector_erase_remove.cpp)
+target_link_libraries(fixed_vector_erase_remove PRIVATE sertial)
+
 # Main demo executable
 add_executable(${PROJECT_NAME} src/main.cpp)
 target_link_libraries(${PROJECT_NAME} PRIVATE sertial)

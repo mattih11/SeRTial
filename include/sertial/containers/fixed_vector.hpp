@@ -205,6 +205,116 @@ public:
         size_ = new_size;
     }
     
+    /**
+     * @brief Erase element at position
+     * @param pos Iterator to element to remove
+     * @return Iterator following the last removed element
+     * @note O(n) time complexity - shifts subsequent elements
+     */
+    constexpr iterator erase(const_iterator pos) {
+        assert(pos >= begin() && pos < end() && "fixed_vector: erase iterator out of range");
+        
+        iterator mutable_pos = const_cast<iterator>(pos);
+        iterator last = end();
+        
+        // Shift elements left
+        std::move(mutable_pos + 1, last, mutable_pos);
+        
+        // Destroy last element
+        --size_;
+        if constexpr (!std::is_trivially_destructible_v<T>) {
+            data_[size_].~T();
+        }
+        
+        return mutable_pos;
+    }
+    
+    /**
+     * @brief Erase range of elements
+     * @param first Iterator to first element to remove
+     * @param last Iterator past the last element to remove
+     * @return Iterator following the last removed element
+     * @note O(n) time complexity - shifts subsequent elements
+     */
+    constexpr iterator erase(const_iterator first, const_iterator last) {
+        assert(first >= begin() && first <= end() && "fixed_vector: erase first iterator out of range");
+        assert(last >= first && last <= end() && "fixed_vector: erase last iterator out of range");
+        
+        if (first == last) return const_cast<iterator>(last);
+        
+        iterator mutable_first = const_cast<iterator>(first);
+        iterator mutable_last = const_cast<iterator>(last);
+        iterator vec_end = end();
+        
+        // Calculate number of elements to remove
+        size_type num_erased = static_cast<size_type>(mutable_last - mutable_first);
+        
+        // Shift elements left
+        std::move(mutable_last, vec_end, mutable_first);
+        
+        // Destroy removed elements at end
+        size_type new_size = size_ - num_erased;
+        if constexpr (!std::is_trivially_destructible_v<T>) {
+            for (size_type i = new_size; i < size_; ++i) {
+                data_[i].~T();
+            }
+        }
+        size_ = new_size;
+        
+        return mutable_first;
+    }
+    
+    /**
+     * @brief Remove all elements equal to value
+     * @param value Value to remove
+     * @return Number of elements removed
+     * @note O(n) time complexity
+     */
+    constexpr size_type remove(const T& value) {
+        size_type old_size = size_;
+        auto new_end = std::remove(begin(), end(), value);
+        
+        // Destroy removed elements
+        if constexpr (!std::is_trivially_destructible_v<T>) {
+            for (iterator it = new_end; it != end(); ++it) {
+                it->~T();
+            }
+        }
+        
+        size_ = static_cast<size_type>(new_end - begin());
+        return old_size - size_;
+    }
+    
+    /**
+     * @brief Remove all elements satisfying predicate
+     * @tparam Predicate Unary predicate type
+     * @param pred Predicate that returns true for elements to remove
+     * @return Number of elements removed
+     * @note O(n) time complexity
+     * 
+     * @example
+     * @code
+     * fixed_vector<int, 10> vec = {1, 2, 3, 4, 5};
+     * vec.remove_if([](int x) { return x % 2 == 0; }); // Removes evens
+     * // vec is now {1, 3, 5}
+     * @endcode
+     */
+    template<typename Predicate>
+    constexpr size_type remove_if(Predicate pred) {
+        size_type old_size = size_;
+        auto new_end = std::remove_if(begin(), end(), pred);
+        
+        // Destroy removed elements
+        if constexpr (!std::is_trivially_destructible_v<T>) {
+            for (iterator it = new_end; it != end(); ++it) {
+                it->~T();
+            }
+        }
+        
+        size_ = static_cast<size_type>(new_end - begin());
+        return old_size - size_;
+    }
+    
     // ========================================================================
     // Iterators
     // ========================================================================

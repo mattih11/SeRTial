@@ -26,6 +26,16 @@ public:
         buffer_.push_back(msg);
     }
     
+    // Zero-copy write: Directly write to buffer slot without any copy/move
+    void add_message_zerocopy(uint64_t ts, uint32_t seq, float x, float y, float z) {
+        auto& slot = buffer_.emplace_back_in_place();
+        slot.timestamp = ts;
+        slot.seq_number = seq;
+        slot.position[0] = x;
+        slot.position[1] = y;
+        slot.position[2] = z;
+    }
+    
     // Get message closest to target timestamp
     std::optional<TimsMessage> get_at_timestamp(uint64_t target_ts) const {
         if (buffer_.empty()) {
@@ -72,8 +82,8 @@ int main() {
     std::cout << "============================\n\n";
     
     // Producer: Simulate realtime message generation
-    std::cout << "Producer: Adding 150 messages (buffer capacity: 100)...\n";
-    for (uint64_t t = 1000; t <= 1149; ++t) {
+    std::cout << "Producer: Adding 75 messages (traditional copy)...\n";
+    for (uint64_t t = 1000; t <= 1074; ++t) {
         float phase = (t - 1000) * 0.1f;
         TimsMessage msg{
             t,
@@ -81,6 +91,16 @@ int main() {
             std::sin(phase), std::cos(phase), phase
         };
         producer.add_message(msg);
+    }
+    
+    std::cout << "Producer: Adding 75 messages (zero-copy writes)...\n";
+    for (uint64_t t = 1075; t <= 1149; ++t) {
+        float phase = (t - 1000) * 0.1f;
+        producer.add_message_zerocopy(
+            t,
+            static_cast<uint32_t>(t - 1000),
+            std::sin(phase), std::cos(phase), phase
+        );
     }
     
     std::cout << "History size: " << producer.history_count() << " messages\n";
@@ -122,6 +142,7 @@ int main() {
     std::cout << "Key Features Demonstrated:\n";
     std::cout << "  ✓ Fixed capacity (100 messages)\n";
     std::cout << "  ✓ Zero allocation (stack-based)\n";
+    std::cout << "  ✓ Zero-copy writes (emplace_back_in_place)\n";
     std::cout << "  ✓ Automatic overwrite of oldest data\n";
     std::cout << "  ✓ O(1) push operations\n";
     std::cout << "  ✓ Timestamp-based retrieval\n";

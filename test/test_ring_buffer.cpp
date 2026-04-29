@@ -360,6 +360,64 @@ void test_emplace_back() {
     assert(buf.back().y == 4);
 }
 
+void test_emplace_back_in_place() {
+    struct LargeData {
+        int id{0};
+        double values[10]{};
+        uint64_t timestamp{0};
+    };
+    
+    RingBuffer<LargeData, 5> buf;
+    
+    // Test 1: Zero-copy write to empty buffer
+    auto& slot1 = buf.emplace_back_in_place();
+    slot1.id = 42;
+    slot1.values[0] = 1.5;
+    slot1.values[9] = 9.5;
+    slot1.timestamp = 1000;
+    
+    assert(buf.size() == 1);
+    assert(buf.front().id == 42);
+    assert(buf.front().values[0] == 1.5);
+    assert(buf.front().values[9] == 9.5);
+    assert(buf.front().timestamp == 1000);
+    
+    // Test 2: Multiple zero-copy writes
+    auto& slot2 = buf.emplace_back_in_place();
+    slot2.id = 43;
+    slot2.timestamp = 2000;
+    
+    auto& slot3 = buf.emplace_back_in_place();
+    slot3.id = 44;
+    slot3.timestamp = 3000;
+    
+    assert(buf.size() == 3);
+    assert(buf[0].id == 42);
+    assert(buf[1].id == 43);
+    assert(buf[2].id == 44);
+    
+    // Test 3: Zero-copy write with overwrite
+    buf.push_back(LargeData{});
+    buf.push_back(LargeData{});
+    assert(buf.size() == 5);
+    assert(buf.full());
+    
+    auto& slot4 = buf.emplace_back_in_place();  // Overwrites oldest
+    slot4.id = 100;
+    slot4.timestamp = 9999;
+    
+    assert(buf.size() == 5);  // Still full
+    assert(buf.front().id == 43);  // 42 was overwritten
+    assert(buf.back().id == 100);
+    assert(buf.back().timestamp == 9999);
+    
+    // Test 4: Verify we can modify returned reference
+    auto& slot5 = buf.emplace_back_in_place();
+    slot5.id = 200;
+    slot5.id += 50;  // Modify in place
+    assert(buf.back().id == 250);
+}
+
 // ============================================================================
 // Constexpr Tests (C++20)
 // ============================================================================
@@ -548,6 +606,7 @@ int main() {
     test_section("string_type", test_string_type);
     test_section("move_semantics", test_move_semantics);
     test_section("emplace_back", test_emplace_back);
+    test_section("emplace_back_in_place", test_emplace_back_in_place);
     
     // Real-world use case
     test_section("commrat_use_case", test_commrat_use_case);

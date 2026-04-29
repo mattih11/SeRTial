@@ -49,6 +49,67 @@ bool fixed_vector_test() {
     return true;
 }
 
+bool fixed_vector_erase_remove_test() {
+    TEST_SECTION("Test 1a: fixed_vector erase/remove operations");
+    
+    // Test erase(iterator)
+    fixed_vector<int, 10> vec1 = {1, 2, 3, 4, 5};
+    auto it = vec1.erase(vec1.begin() + 2);  // Remove 3
+    TEST_ASSERT_EQ(vec1.size(), 4u, "Size after erase");
+    TEST_ASSERT_EQ(vec1[0], 1, "Element 0");
+    TEST_ASSERT_EQ(vec1[1], 2, "Element 1");
+    TEST_ASSERT_EQ(vec1[2], 4, "Element 2 (was 4)");
+    TEST_ASSERT_EQ(vec1[3], 5, "Element 3");
+    TEST_ASSERT_EQ(*it, 4, "Iterator points to next element");
+    
+    // Test erase(first, last) - range
+    fixed_vector<int, 10> vec2 = {1, 2, 3, 4, 5, 6, 7};
+    vec2.erase(vec2.begin() + 2, vec2.begin() + 5);  // Remove 3, 4, 5
+    TEST_ASSERT_EQ(vec2.size(), 4u, "Size after range erase");
+    TEST_ASSERT_EQ(vec2[0], 1, "First unchanged");
+    TEST_ASSERT_EQ(vec2[1], 2, "Second unchanged");
+    TEST_ASSERT_EQ(vec2[2], 6, "Third is now 6");
+    TEST_ASSERT_EQ(vec2[3], 7, "Fourth is now 7");
+    
+    // Test remove(value)
+    fixed_vector<int, 10> vec3 = {1, 2, 3, 2, 4, 2, 5};
+    size_t removed = vec3.remove(2);  // Remove all 2s
+    TEST_ASSERT_EQ(removed, 3u, "Removed 3 elements");
+    TEST_ASSERT_EQ(vec3.size(), 4u, "Size after remove");
+    TEST_ASSERT_EQ(vec3[0], 1, "Element 0");
+    TEST_ASSERT_EQ(vec3[1], 3, "Element 1");
+    TEST_ASSERT_EQ(vec3[2], 4, "Element 2");
+    TEST_ASSERT_EQ(vec3[3], 5, "Element 3");
+    
+    // Test remove_if(predicate)
+    fixed_vector<int, 10> vec4 = {1, 2, 3, 4, 5, 6, 7, 8};
+    removed = vec4.remove_if([](int x) { return x % 2 == 0; });  // Remove evens
+    TEST_ASSERT_EQ(removed, 4u, "Removed 4 even numbers");
+    TEST_ASSERT_EQ(vec4.size(), 4u, "Size after remove_if");
+    TEST_ASSERT_EQ(vec4[0], 1, "Odd 1");
+    TEST_ASSERT_EQ(vec4[1], 3, "Odd 3");
+    TEST_ASSERT_EQ(vec4[2], 5, "Odd 5");
+    TEST_ASSERT_EQ(vec4[3], 7, "Odd 7");
+    
+    // Test with strings (non-trivial types)
+    fixed_vector<std::string, 10> vec5 = {"apple", "banana", "cherry", "apple", "date"};
+    removed = vec5.remove("apple");
+    TEST_ASSERT_EQ(removed, 2u, "Removed 2 apples");
+    TEST_ASSERT_EQ(vec5.size(), 3u, "Size after string remove");
+    TEST_ASSERT_EQ(vec5[0], "banana", "String 0");
+    TEST_ASSERT_EQ(vec5[1], "cherry", "String 1");
+    TEST_ASSERT_EQ(vec5[2], "date", "String 2");
+    
+    TEST_PRINT("Erase/Remove tests:");
+    TEST_PRINT("  - Single element erase: OK");
+    TEST_PRINT("  - Range erase: OK");
+    TEST_PRINT("  - Remove by value: OK");
+    TEST_PRINT("  - Remove by predicate: OK");
+    TEST_PRINT("  - Non-trivial types: OK");
+    
+    return true;
+}
+
 bool fixed_string_test() {
     TEST_SECTION("Test 2: fixed_string<32>");
     
@@ -161,6 +222,7 @@ struct FoundationTests : TestSuite<FoundationTests> {
     
     static bool run() {
         if (!tests::fixed_vector_test()) return false;
+        if (!tests::fixed_vector_erase_remove_test()) return false;
         if (!tests::fixed_string_test()) return false;
         if (!tests::container_traits_test()) return false;
         if (!tests::type_traits_test()) return false;
