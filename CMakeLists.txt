@@ -9,6 +9,9 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # Include standard installation directories
 include(GNUInstallDirs)
 
+# Enable CTest
+include(CTest)
+
 # Find reflect-cpp package
 find_package(reflectcpp REQUIRED)
 
@@ -100,7 +103,11 @@ set(TEST_SOURCES
 foreach(test_name ${TEST_SOURCES})
     add_executable(${test_name} test/${test_name}.cpp)
     target_link_libraries(${test_name} PRIVATE sertial)
+    add_test(NAME ${test_name} COMMAND ${test_name})
 endforeach()
+
+# Register example-based test
+add_test(NAME test_example COMMAND test_example)
 
 # ============================================================================
 # Compiler Warnings
@@ -120,20 +127,12 @@ endforeach()
 # Custom Targets
 # ============================================================================
 
-# Run all tests
+# Run all tests (use 'ctest' or 'cmake --build . --target test' instead)
 add_custom_target(run_tests
-    COMMAND test_foundation
-    COMMAND test_serialization
-    COMMAND test_padding
-    COMMAND test_endianness
-    COMMAND test_struct_layout
-    COMMAND test_ring_buffer
-    COMMAND test_ring_buffer_serialization
-    COMMAND test_element_padding
-    COMMAND test_example
+    COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
     DEPENDS ${TEST_SOURCES} test_example
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-    COMMENT "Running all tests..."
+    COMMENT "Running all tests via CTest..."
 )
 
 # Run example tests only
