@@ -29,6 +29,24 @@ struct SchemaOutput {
     std::vector<std::string> messages;
 };
 
+/// A single entry in a typed schema output file.
+/// Wraps the serialized StructLayout data for one type.
+/// rfl-reflectable so downstream can compose via rfl::Flatten.
+struct MessageLayoutRecord {
+    std::string layout;  // rfl::json::write(StructLayout<T>{})
+};
+
+/// Typed schema collection output format — preferred for new tooling.
+/// Downstream can supply a custom Record type that extends MessageLayoutRecord
+/// via rfl::Flatten to add extra per-message metadata without duplicating
+/// the SeRTial schema logic.
+template<typename Record = MessageLayoutRecord>
+struct SchemaOutputT {
+    std::string version = "5.1.0";
+    std::string generated;
+    std::vector<Record> messages;
+};
+
 /// SchemaGenerator - Generate JSON schemas for MessageCollection types
 template<typename Collection>
 struct SchemaGenerator {
@@ -54,6 +72,20 @@ struct SchemaGenerator {
         return output;
     }
     
+    /// Generate SchemaOutputT<Record> with actual layout data.
+    /// Record defaults to MessageLayoutRecord but can be any type that
+    /// is default-constructible and has a `layout` field populated here.
+    /// Downstream types should use rfl::Flatten<MessageLayoutRecord> to
+    /// receive the layout string and add their own fields alongside it.
+    template<typename Record = MessageLayoutRecord>
+    static SchemaOutputT<Record> generate_typed_data() {
+        SchemaOutputT<Record> output;
+        output.version   = "5.1.0";
+        output.generated = __DATE__ " " __TIME__;
+        generate_typed_data_impl<0, Record>(output);
+        return output;
+    }
+
     /// Convert schemas to JSON string
     static std::string to_json_schema() {
         auto output = generate_schemas();
@@ -147,6 +179,18 @@ private:
             using T = typename Collection::template type_at<I>;
             output.messages.push_back(export_layout_data<T>());
             generate_data_impl<I + 1>(output);
+        }
+    }
+
+    /// Recursive typed data generation (compile-time iteration)
+    template<std::size_t I, typename Record>
+    static void generate_typed_data_impl(SchemaOutputT<Record>& output) {
+        if constexpr (I < Collection::count) {
+            using T = typename Collection::template type_at<I>;
+            Record record{};
+            record.layout = export_layout_data<T>();
+            output.messages.push_back(std::move(record));
+            generate_typed_data_impl<I + 1, Record>(output);
         }
     }
 };
