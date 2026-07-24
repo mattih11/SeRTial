@@ -26,31 +26,40 @@ Interactive HTML-based tool that visualizes how your message types are laid out 
 
 ### Generate Schema
 
+**Option A — CMake helper (recommended for projects)**
+
+Add one call to your `CMakeLists.txt` after `find_package(SeRTial)`.
+The schema JSON is regenerated automatically every time your executable is rebuilt:
+
+```cmake
+# my_registry.hpp defines:  using MyMessages = MessageCollection<Msg1, Msg2>;
+sertial_generate_schema(
+    TARGET          my_app
+    REGISTRY_HEADER "${CMAKE_SOURCE_DIR}/include/my_registry.hpp"
+    COLLECTION_TYPE MyMessages
+    OUTPUT          "${CMAKE_BINARY_DIR}/my_schemas.json"
+)
+```
+
+```bash
+cmake --build build   # schema auto-generated as post-build step
+```
+
+**Option B — write a small main() yourself**
+
 ```cpp
 #include <sertial/integration/message_collection.hpp>
 #include <sertial/integration/schema_generator.hpp>
 
-// Define your types
 struct SensorData {
     uint64_t timestamp;
     uint32_t sensor_id;
     sertial::fixed_vector<float, 100> readings;
 };
 
-struct Position {
-    double x, y, z;
-    uint64_t timestamp;
-};
-
-// Register types
-using MyMessages = sertial::MessageCollection<
-    SensorData,
-    Position
-    // Add more types here
->;
+using MyMessages = sertial::MessageCollection<SensorData>;
 
 int main() {
-    // Generate schema JSON for all registered types
     sertial::SchemaGenerator<MyMessages>::write_verbose("my_schemas.json");
     return 0;
 }
@@ -58,9 +67,8 @@ int main() {
 
 Build and run:
 ```bash
-cd build
-cmake --build . --target my_schema_generator
-./my_schema_generator
+cmake --build build --target my_schema_generator
+./build/my_schema_generator
 # Creates my_schemas.json - load in viewer
 ```
 

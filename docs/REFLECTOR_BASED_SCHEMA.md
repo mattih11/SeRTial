@@ -417,6 +417,91 @@ Potential extensions using the same pattern:
 
 All achievable by adding new Reflectors or using existing schema with different writers.
 
+## Typed Schema Composition: MessageLayoutRecord and SchemaOutputT
+
+### The Problem
+
+`SchemaOutput::messages` is a `vector<string>` — opaque JSON blobs. Downstream
+tooling (e.g. CommRaT) that needs to attach its own per-message metadata
+alongside the SeRTial layout data has no typed hook.
+
+### The Solution
+
+Two new public types and a new generator method allow downstream code to compose
+per-message records via `rfl::Flatten` without duplicating SeRTial schema logic:
+
+```cpp
+namespace sertial {
+
+/// Per-message record — rfl-reflectable, composable via rfl::Flatten.
+struct MessageLayoutRecord {
+    std::string layout;  // rfl::json::write(StructLayout<T>{})
+};
+
+/// Typed parallel of SchemaOutput.
+template<typename Record = MessageLayoutRecord>
+struct SchemaOutputT {
+    std::string version;
+    std::string generated;
+    std::vector<Record> messages;
+};
+
+} // namespace sertial
+```
+
+`SchemaGenerator` gains a parallel method:
+
+```cpp
+// Returns SchemaOutputT<Record> with record.layout populated from
+// export_layout_data<T>() for each type in the collection.
+auto output = SchemaGenerator<MyMessages>::generate_typed_data<MyRecord>();
+std::string json = rfl::json::write(output);  // full Record serialized
+```
+
+### Downstream Composition Example
+
+```cpp
+// commrat/commrat_schema_output.hpp
+struct CommRaTMetadata {
+    uint32_t message_id;
+    std::string payload_type;
+    std::string registry_name;
+};
+
+struct CommRaTMessageRecord {
+    rfl::Flatten<sertial::MessageLayoutRecord> sertial;  // layout field in-place
+    CommRaTMetadata commrat;
+};
+
+using CommRaTSchemaOutput = sertial::SchemaOutputT<CommRaTMessageRecord>;
+```
+
+JSON output — `sertial-inspect` reads `layout`; `commrat inspect` reads both:
+
+```json
+{
+  "version": "5.1.0",
+  "messages": [
+    {
+      "layout": "{ ...StructLayout fields... }",
+      "commrat": {
+        "message_id": 1,
+        "payload_type": "TemperatureData",
+        "registry_name": "MyApp"
+      }
+    }
+  ]
+}
+```
+
+### Zero Breaking Changes
+
+`SchemaOutput`, `generate_data()`, `generate_schemas()`, and all existing
+methods are unchanged. `MessageLayoutRecord` / `SchemaOutputT` / `generate_typed_data()`
+are purely additive.
+
+---
+
 ## Conclusion
 
 The reflector-based approach represents a **paradigm shift** in how C++ libraries can provide introspection:
@@ -425,3 +510,4 @@ The reflector-based approach represents a **paradigm shift** in how C++ librarie
 - **After**: Automatic reflection, compile-time validation, zero boilerplate
 
 This is the power of **metaprogramming done right**: complexity hidden behind a simple interface, with the compiler enforcing correctness every step of the way.
+

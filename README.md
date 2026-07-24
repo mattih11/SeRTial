@@ -86,8 +86,42 @@ Installs to:
 
 ```cmake
 find_package(SeRTial REQUIRED)
-target_link_libraries(your_target PRIVATE SeRTial::SeRTial)
+target_link_libraries(your_target PRIVATE SeRTial::sertial)
 ```
+
+### Auto-Generate Schemas at Build Time
+
+After `find_package(SeRTial)`, the `sertial_generate_schema()` CMake function is
+available. Point it at the header that defines your message collection and it
+compiles a small driver and runs it as a post-build step:
+
+```cmake
+# my_registry.hpp contains: using MyApp = MessageCollection<Msg1, Msg2, ...>;
+sertial_generate_schema(
+    TARGET          my_app
+    REGISTRY_HEADER "${CMAKE_SOURCE_DIR}/include/my_registry.hpp"
+    COLLECTION_TYPE MyApp
+    OUTPUT          "${CMAKE_BINARY_DIR}/my_app_schemas.json"
+)
+```
+
+With a custom record type (e.g. CommRaT extending the layout with its own metadata):
+
+```cmake
+sertial_generate_schema(
+    TARGET          my_app
+    REGISTRY_HEADER "${CMAKE_SOURCE_DIR}/include/my_registry.hpp"
+    COLLECTION_TYPE MyApp
+    OUTPUT          "${CMAKE_BINARY_DIR}/my_app_schemas.json"
+    RECORD_HEADER   "${CMAKE_SOURCE_DIR}/include/my_schema_record.hpp"
+    RECORD_TYPE     myns::MyMessageRecord   # rfl::Flatten<sertial::MessageLayoutRecord> + extra fields
+)
+```
+
+The driver uses `SchemaGenerator<Collection>::generate_typed_data<Record>()` and
+`rfl::json::write()`, so the full `Record` struct is serialized — no manual JSON
+merging required. `sertial-inspect` reads the `layout` field; your own tooling
+reads the rest.
 
 ---
 
@@ -172,8 +206,14 @@ include/sertial/           # Public API headers
 ├── containers/           # Bounded containers (fixed_vector, fixed_string, RingBuffer)
 ├── core/                 # Type analysis (StructLayout, traits, concepts)
 ├── io/                   # Serialization API (serialize/deserialize)
-├── integration/          # Schema export
+├── integration/          # Schema export and collection support
+│   ├── schema_generator.hpp  # SchemaGenerator, SchemaOutput, SchemaOutputT, MessageLayoutRecord
+│   └── message_collection.hpp
 └── reflector/            # reflect-cpp integrations
+
+cmake/
+├── SeRTialConfig.cmake.in    # find_package() config
+└── SeRTialSchemaGen.cmake    # sertial_generate_schema() helper function
 
 docs/                     # Documentation
 ├── USER_GUIDE.md
@@ -181,21 +221,25 @@ docs/                     # Documentation
 ├── EXAMPLES.md
 └── ...
 
-examples/                 # Runnable examples
+examples/
+├── example_collection.hpp        # Standalone collection header (usable as REGISTRY_HEADER)
 ├── serialization_example.cpp
 ├── schema_example.cpp
 └── ring_buffer_example.cpp
 
-test/                     # Unit tests
+test/                     # Unit tests (all registered with CTest)
 ├── test_serialization.cpp
 ├── test_foundation.cpp
 ├── test_ring_buffer.cpp
 └── ...
 
-tools/sertial-inspect/    # Visualization tools
-├── main.cpp             # CLI tool
-├── viewer.html          # Interactive browser viewer
-└── README.md
+tools/
+├── sertial-inspect/      # Visualization tools
+│   ├── main.cpp         # CLI tool
+│   ├── viewer.html      # Interactive browser viewer
+│   └── README.md
+└── schema_gen/
+    └── schema_gen_driver.cpp  # Driver compiled by sertial_generate_schema()
 ```
 
 ---
@@ -263,7 +307,15 @@ auto buffer = sertial::serialize(config);
 - C++ CLI tool (replaces Python scripts)
 - All Python dependencies removed
 - Unified container registration via `SerializableContainer` concept
-- **NEW**: Full constexpr support for fixed_string with compile-time string literals
+- Full constexpr support for `fixed_string` with compile-time string literals
+
+**v2.1 additions** (July 2026):
+- `MessageLayoutRecord` — rfl-reflectable per-message record struct
+- `SchemaOutputT<Record>` — typed parallel of `SchemaOutput` for downstream composition
+- `SchemaGenerator::generate_typed_data<Record>()` — typed schema generation
+- `sertial_generate_schema()` CMake helper — auto-generates schema JSON at build time
+- `SeRTial::sertial` CMake alias — consistent naming for `find_package()` users
+- All 9 tests registered with CTest (`ctest --output-on-failure`)
 
 **Phase 5 Roadmap**:
 - Cross-platform serialization (endianness handling)

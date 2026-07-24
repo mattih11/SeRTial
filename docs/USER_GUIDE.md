@@ -282,31 +282,55 @@ auto buffer = sertial::serialize(hist);
 
 SeRTial can export JSON schemas for interactive visualization and documentation.
 
-### Generate Schema
+### CMake Helper (recommended)
+
+`find_package(SeRTial)` makes `sertial_generate_schema()` available. It compiles
+a small driver against your collection header and runs it as a post-build step —
+no extra `main()` needed:
+
+```cmake
+# my_registry.hpp defines: using MyApp = MessageCollection<Msg1, Msg2, ...>;
+sertial_generate_schema(
+    TARGET          my_app
+    REGISTRY_HEADER "${CMAKE_SOURCE_DIR}/include/my_registry.hpp"
+    COLLECTION_TYPE MyApp
+    OUTPUT          "${CMAKE_BINARY_DIR}/my_app_schemas.json"
+)
+```
+
+The schema file is regenerated every time `my_app` is rebuilt.
+
+For custom record types that extend the layout data with extra fields:
+
+```cmake
+sertial_generate_schema(
+    TARGET          my_app
+    REGISTRY_HEADER "${CMAKE_SOURCE_DIR}/include/my_registry.hpp"
+    COLLECTION_TYPE MyApp
+    OUTPUT          "${CMAKE_BINARY_DIR}/my_app_schemas.json"
+    RECORD_HEADER   "${CMAKE_SOURCE_DIR}/include/my_schema_record.hpp"
+    RECORD_TYPE     myns::MyMessageRecord
+)
+```
+
+See [REFLECTOR_BASED_SCHEMA.md](REFLECTOR_BASED_SCHEMA.md) for the typed
+composition API (`MessageLayoutRecord`, `SchemaOutputT`, `generate_typed_data`).
+
+### Manual Generation
 
 ```cpp
-#include <sertial/integration/schema_export.hpp>
+#include <sertial/integration/schema_generator.hpp>
 
-struct MyMessage {
-    uint32_t id;
-    fixed_vector<float, 100> data;
-    uint64_t timestamp;
-};
+using MyMessages = sertial::MessageCollection<MyMessage>;
 
 int main() {
-    // Export schema to JSON
-    auto schema = sertial::get_struct_layout_schema<MyMessage>("MyMessage");
-    std::string json = rfl::json::write(schema);
-    
-    // Save to file
-    std::ofstream out("my_message.json");
-    out << json;
+    sertial::SchemaGenerator<MyMessages>::write_verbose("my_message.json");
 }
 ```
 
 ### Visualize with Interactive Viewer
 
-1. Generate schema JSON (as above)
+1. Generate schema JSON (either method above)
 2. Open viewer: `tools/sertial-inspect/viewer.html`
 3. Drop JSON file or paste content
 4. Explore structure interactively
