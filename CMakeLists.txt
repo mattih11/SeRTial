@@ -12,6 +12,9 @@ include(GNUInstallDirs)
 # Enable CTest
 include(CTest)
 
+# SeRTial schema-gen helper (available to downstream projects via find_package)
+include(cmake/SeRTialSchemaGen.cmake)
+
 # Find reflect-cpp package
 find_package(reflectcpp REQUIRED)
 
@@ -26,6 +29,10 @@ target_include_directories(sertial INTERFACE
 )
 target_link_libraries(sertial INTERFACE reflectcpp)
 target_compile_features(sertial INTERFACE cxx_std_20)
+
+# Alias so cmake/SeRTialSchemaGen.cmake can use SeRTial::sertial in both
+# the build tree and after find_package(SeRTial).
+add_library(SeRTial::sertial ALIAS sertial)
 
 # ============================================================================
 # Examples Library (Header-Only, for user message types)
@@ -45,6 +52,14 @@ target_link_libraries(sertial_examples INTERFACE sertial)
 # Schema generation example - one-liner API
 add_executable(schema_example examples/schema_example.cpp)
 target_link_libraries(schema_example PRIVATE sertial_examples)
+
+# Smoke-test sertial_generate_schema(): auto-generate example schemas post-build
+sertial_generate_schema(
+    TARGET          schema_example
+    REGISTRY_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/examples/example_collection.hpp"
+    COLLECTION_TYPE ExampleMessages
+    OUTPUT          "${CMAKE_CURRENT_BINARY_DIR}/example_schemas_autogen.json"
+)
 
 # Test example - one-liner API  
 add_executable(test_example examples/test_example.cpp)
@@ -225,7 +240,13 @@ write_basic_package_version_file(
 install(FILES
     ${CMAKE_CURRENT_BINARY_DIR}/SeRTialConfig.cmake
     ${CMAKE_CURRENT_BINARY_DIR}/SeRTialConfigVersion.cmake
+    cmake/SeRTialSchemaGen.cmake
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/SeRTial
+)
+
+# Install schema-gen driver source so downstream projects can compile it
+install(FILES tools/schema_gen/schema_gen_driver.cpp
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/sertial/schema_gen
 )
 
 # Install target

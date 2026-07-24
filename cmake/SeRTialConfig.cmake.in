@@ -7,4 +7,12 @@ find_dependency(reflectcpp REQUIRED)
 # Include targets
 include("${CMAKE_CURRENT_LIST_DIR}/SeRTialTargets.cmake")
 
+# Provide sertial_generate_schema() helper to downstream projects.
+# Set SERTIAL_SCHEMA_GEN_DRIVER to the installed driver source path so the
+# helper can locate schema_gen_driver.cpp without needing the SeRTial source tree.
+set(SERTIAL_SCHEMA_GEN_DRIVER
+    "${PACKAGE_PREFIX_DIR}/@CMAKE_INSTALL_DATADIR@/sertial/schema_gen/schema_gen_driver.cpp"
+)
+include("${CMAKE_CURRENT_LIST_DIR}/SeRTialSchemaGen.cmake")
+
 check_required_components(SeRTial)
