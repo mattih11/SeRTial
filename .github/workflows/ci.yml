@@ -1,0 +1,130 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# The RaTOS dev container image is public (no credentials required to pull).
+# Image reference and release repo are defined in .sertial.env and mirrored
+# here. Update both files when the RaTOS image changes.
+#
+# Required GitHub Actions secrets (repo Settings -> Secrets -> Actions):
+#   RATOS_RELEASE_TOKEN  PAT with actions:read scope on mattih11/RaTOS
+#                        (needed to download SDK and QEMU artifacts)
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Job 1: Build and test with the standard Linux platform backend.
+  #        Runs inside the ratos-dev-image container where all deps
+  #        (reflect-cpp etc.) are pre-installed.
+  # ---------------------------------------------------------------------------
+  build-std:
+    name: Build & Test (STD platform)
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/mattih11/ratos-dev-image:latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake --preset default
+
+      - name: Build
+        run: cmake --build --preset default --parallel $(nproc)
+
+      - name: Test
+        run: ctest --preset default
+
+  # ---------------------------------------------------------------------------
+  # Job 2: Cross-compile with the EVL platform backend against the RaTOS SDK.
+  #        Uses scripts/evl-build.sh --cross evl-cross which auto-downloads
+  #        and caches the ISAR SDK, then builds with cmake --preset evl-cross.
+  #        The SDK cache is keyed to RATOS_RELEASE_TAG from .sertial.env.
+  #        This is a compile-only check — no QEMU overhead.
+  # ---------------------------------------------------------------------------
+  build-evl-compile:
+    name: Build (EVL cross-compile)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read release tag
+        run: |
+          tag=$(grep '^RATOS_RELEASE_TAG=' .sertial.env | cut -d= -f2)
+          echo "RATOS_RELEASE_TAG=${tag}" >> "$GITHUB_ENV"
+
+      - name: Install patchelf
+        run: sudo apt-get install -y --no-install-recommends patchelf
+
+      - name: Restore SDK cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            .evl-cache/sdk
+            .evl-cache/.sdk_cache_key
+          key: ratos-sdk-${{ env.RATOS_RELEASE_TAG }}
+
+      - name: Cross-compile (EVL)
+        env:
+          RATOS_RELEASE_TOKEN: ${{ secrets.RATOS_RELEASE_TOKEN }}
+        run: scripts/evl-build.sh --cross evl-cross
+
+  # ---------------------------------------------------------------------------
+  # Job 3: Runtime tests inside a real EVL kernel via QEMU.
+  #        Uses scripts/evl-build.sh --cross evl-cross --test which:
+  #          1. Downloads + caches the RaTOS SDK (auto, keyed to release tag)
+  #          2. Cross-compiles SeRTial with cmake --preset evl-cross
+  #          3. Downloads + caches QEMU kernel/initrd/ext4 artifacts
+  #          4. Boots QEMU with the EVL kernel
+  #          5. Deploys cross-compiled test binaries to the guest
+  #          6. Configures the build tree in the guest (fast, no recompile)
+  #          7. Runs ctest --preset evl and reports pass/fail
+  #
+  #        Depends on build-std passing first (catches obvious failures fast).
+  # ---------------------------------------------------------------------------
+  test-evl-runtime:
+    name: Runtime tests (EVL kernel via QEMU)
+    runs-on: ubuntu-latest
+    needs: build-std
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read release tag
+        run: |
+          tag=$(grep '^RATOS_RELEASE_TAG=' .sertial.env | cut -d= -f2)
+          echo "RATOS_RELEASE_TAG=${tag}" >> "$GITHUB_ENV"
+
+      - name: Install QEMU and tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            qemu-system-x86 rsync patchelf
+
+      - name: Restore SDK cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            .evl-cache/sdk
+            .evl-cache/.sdk_cache_key
+          key: ratos-sdk-${{ env.RATOS_RELEASE_TAG }}
+
+      - name: Restore QEMU artifacts cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            .evl-cache/ratos.ext4
+            .evl-cache/vmlinuz
+            .evl-cache/initrd.img
+            .evl-cache/.cache_key
+          key: ratos-qemu-${{ env.RATOS_RELEASE_TAG }}
+
+      - name: Cross-compile and run tests in QEMU
+        env:
+          RATOS_RELEASE_TOKEN: ${{ secrets.RATOS_RELEASE_TOKEN }}
+        run: scripts/evl-build.sh --cross evl-cross --test

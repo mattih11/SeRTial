@@ -1,0 +1,65 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": { "major": 3, "minor": 20, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "default",
+      "displayName": "Default (STD platform, Release)",
+      "description": "Standard Linux build with all tests and examples. Use inside the ratos-dev-image container or when all dependencies (reflect-cpp) are installed locally.",
+      "inherits": "base"
+    },
+    {
+      "name": "debug",
+      "displayName": "Debug (STD platform)",
+      "description": "Standard Linux build with full assertions and debug symbols.",
+      "inherits": "default",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "evl",
+      "displayName": "EVL platform (inside QEMU guest / ratos-dev-image)",
+      "description": "Build and test natively inside an EVL kernel guest. Requires reflect-cpp in the sysroot (present in ratos-dev-image and the RaTOS ISAR SDK). Run via scripts/evl-build.sh.",
+      "inherits": "base"
+    },
+    {
+      "name": "evl-cross",
+      "displayName": "EVL cross-compile against RaTOS SDK",
+      "description": "Cross-compile SeRTial tests against the RaTOS ISAR SDK sysroot. The SDK is downloaded and relocated automatically by scripts/evl-build.sh --cross. Verifies compilation works with the EVL target toolchain.",
+      "inherits": "base",
+      "toolchainFile": "${sourceDir}/cmake/isar-sdk-toolchain.cmake"
+    }
+  ],
+  "buildPresets": [
+    { "name": "default",   "configurePreset": "default"   },
+    { "name": "debug",     "configurePreset": "debug"     },
+    { "name": "evl",       "configurePreset": "evl"       },
+    { "name": "evl-cross", "configurePreset": "evl-cross" }
+  ],
+  "testPresets": [
+    {
+      "name": "default",
+      "configurePreset": "default",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "debug",
+      "configurePreset": "debug",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "evl",
+      "configurePreset": "evl",
+      "output": { "outputOnFailure": true }
+    }
+  ]
+}

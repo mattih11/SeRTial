@@ -7,3 +7,8 @@ __pycache__/
 *.pyc
 docs/work
 docs/api/
+
+# EVL / RaTOS local overrides and artifact cache
+.sertial.env.local
+.evl-cache/
+
