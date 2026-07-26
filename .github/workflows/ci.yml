@@ -7,9 +7,8 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# The RaTOS dev container image is public (no credentials required to pull).
-# Image reference and release repo are defined in .sertial.env and mirrored
-# here. Update both files when the RaTOS image changes.
+# STD platform: bare ubuntu-latest, deps installed from release .deb packages.
+# EVL platform: uses the RaTOS ISAR SDK and QEMU (no container).
 #
 # Required GitHub Actions secrets (repo Settings -> Secrets -> Actions):
 #   RATOS_RELEASE_TOKEN  PAT with actions:read scope on mattih11/RaTOS
@@ -17,18 +16,30 @@ on:
 
 jobs:
   # ---------------------------------------------------------------------------
-  # Job 1: Build and test with the standard Linux platform backend.
-  #        Runs inside the ratos-dev-image container where all deps
-  #        (reflect-cpp etc.) are pre-installed.
+  # Job 1: Build and test on the standard Linux platform.
+  #        Runs on bare ubuntu-latest; deps (reflectcpp) installed from the
+  #        published .deb package — no ratos-dev-image container needed.
   # ---------------------------------------------------------------------------
   build-std:
     name: Build & Test (STD platform)
     runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/mattih11/ratos-dev-image:latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            cmake ninja-build pkg-config
+
+      - name: Install reflectcpp
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download --repo getml/reflect-cpp \
+            --pattern "reflectcpp_*_amd64.deb" --dir /tmp/pkgs
+          sudo dpkg -i /tmp/pkgs/reflectcpp_*_amd64.deb
 
       - name: Configure
         run: cmake --preset default
@@ -128,3 +139,48 @@ jobs:
         env:
           RATOS_RELEASE_TOKEN: ${{ secrets.RATOS_RELEASE_TOKEN }}
         run: scripts/evl-build.sh --cross evl-cross --test
+
+  # ---------------------------------------------------------------------------
+  # Job 4: Build and publish sertial_<version>_amd64.deb as a release asset.
+  #        Only runs on version tags (v*). The .deb installs SeRTial headers,
+  #        CMake config, and schema-gen helper under /usr/local so downstream
+  #        repos (CoreRaT, CommRaT, RaTGUI) can consume it on bare ubuntu-latest.
+  # ---------------------------------------------------------------------------
+  publish-deb:
+    name: Publish STD package (.deb)
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build-std
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            cmake ninja-build pkg-config
+
+      - name: Install reflectcpp
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download --repo getml/reflect-cpp \
+            --pattern "reflectcpp_*_amd64.deb" --dir /tmp/pkgs
+          sudo dpkg -i /tmp/pkgs/reflectcpp_*_amd64.deb
+
+      - name: Configure
+        run: cmake --preset default -DCMAKE_INSTALL_PREFIX=/usr/local
+
+      - name: Build
+        run: cmake --build --preset default --parallel $(nproc)
+
+      - name: Package
+        run: cd build/default && cpack -G DEB
+
+      - name: Upload to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${{ github.ref_name }}" \
+            build/default/sertial_*.deb --clobber

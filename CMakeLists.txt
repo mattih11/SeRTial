@@ -282,3 +282,30 @@ if(DOXYGEN_FOUND)
 else()
     message(STATUS "Doxygen not found - 'make docs' target will not be available")
 endif()
+
+# ============================================================================
+# Packaging (CPack — produces sertial_<version>_amd64.deb)
+# ============================================================================
+
+set(CPACK_PACKAGE_NAME              "sertial")
+set(CPACK_PACKAGE_VERSION           "${PROJECT_VERSION}")
+set(CPACK_PACKAGE_VENDOR            "Matthias Haase")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY
+    "SeRTial: zero-allocation C++20 binary serialization library")
+set(CPACK_PACKAGE_HOMEPAGE_URL      "https://github.com/mattih11/SeRTial")
+
+# Debian-specific settings
+set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "amd64")
+set(CPACK_DEBIAN_PACKAGE_MAINTAINER  "Matthias Haase <mattihaae@proton.me>")
+set(CPACK_DEBIAN_PACKAGE_SECTION     "devel")
+set(CPACK_DEBIAN_PACKAGE_PRIORITY    "optional")
+# reflectcpp is header-only and installed from its own deb; no runtime deps.
+set(CPACK_DEBIAN_PACKAGE_DEPENDS     "")
+
+# Output filename: sertial_<version>_amd64.deb
+set(CPACK_PACKAGE_FILE_NAME
+    "${CPACK_PACKAGE_NAME}_${CPACK_PACKAGE_VERSION}_${CPACK_DEBIAN_PACKAGE_ARCHITECTURE}")
+
+set(CPACK_GENERATOR "DEB")
+
+include(CPack)
