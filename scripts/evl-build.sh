@@ -418,22 +418,19 @@ rsync -az --delete \
     -e "ssh ${SSH_OPTS}" \
     ./ "root@127.0.0.1:/root/SeRTial/"
 
+echo "Patching build paths in CTestTestfile.cmake for guest (host-side)..."
+host_build_dir="$(realpath "${REPO_ROOT}/build/${DO_CROSS}")"
+find "${REPO_ROOT}/build/${DO_CROSS}" -name 'CTestTestfile.cmake' \
+    -exec sed -i \
+        -e "s|${host_build_dir}|/root/SeRTial/build/evl|g" \
+        -e "s|${REPO_ROOT}|/root/SeRTial|g" \
+    '{}' '+'
+
 echo "Deploying build/${DO_CROSS}/ to guest /root/SeRTial/build/evl/ ..."
 ssh ${SSH_OPTS} root@127.0.0.1 mkdir -p "/root/SeRTial/build/evl"
 rsync -az \
     -e "ssh ${SSH_OPTS}" \
     "build/${DO_CROSS}/" "root@127.0.0.1:/root/SeRTial/build/evl/"
-
-# Patch host paths in the rsynced CTestTestfile.cmake files so ctest finds
-# the test binaries at their guest locations.  cmake is not required in the
-# guest — this replaces the former "cmake --preset evl" configure step.
-echo "Patching build paths in CTestTestfile.cmake for guest..."
-host_build_dir="$(realpath "${REPO_ROOT}/build/${DO_CROSS}")"
-ssh ${SSH_OPTS} root@127.0.0.1 \
-    find /root/SeRTial/build/evl -name 'CTestTestfile.cmake' \
-    -exec sed -i \
-        "s|${host_build_dir}|/root/SeRTial/build/evl|g; s|${REPO_ROOT}|/root/SeRTial|g" \
-    '{}' '+'
 
 echo "Running ctest on EVL guest..."
 ssh ${SSH_OPTS} root@127.0.0.1 \
