@@ -424,19 +424,19 @@ rsync -az \
     -e "ssh ${SSH_OPTS}" \
     "build/${DO_CROSS}/" "root@127.0.0.1:/root/SeRTial/build/evl/"
 
-echo "Configuring on guest (generates CTestTestfile.cmake)..."
-ssh ${SSH_OPTS} root@127.0.0.1 bash -lc "
-    set -euo pipefail
-    cd /root/SeRTial
-    rm -f build/evl/CMakeCache.txt build/evl/CMakeFiles/cmake.check_cache
-    cmake --preset evl 2>&1
-"
+# Patch host paths in the rsynced CTestTestfile.cmake files so ctest finds
+# the test binaries at their guest locations.  cmake is not required in the
+# guest — this replaces the former "cmake --preset evl" configure step.
+echo "Patching build paths in CTestTestfile.cmake for guest..."
+host_build_dir="$(realpath "${REPO_ROOT}/build/${DO_CROSS}")"
+ssh ${SSH_OPTS} root@127.0.0.1 \
+    find /root/SeRTial/build/evl -name 'CTestTestfile.cmake' \
+    -exec sed -i \
+        "s|${host_build_dir}|/root/SeRTial/build/evl|g; s|${REPO_ROOT}|/root/SeRTial|g" \
+    '{}' '+'
 
-echo "Running ctest --preset evl on EVL guest..."
-ssh ${SSH_OPTS} root@127.0.0.1 bash -lc "
-    set -euo pipefail
-    cd /root/SeRTial
-    ctest --preset evl --timeout 120 2>&1
-"
+echo "Running ctest on EVL guest..."
+ssh ${SSH_OPTS} root@127.0.0.1 \
+    ctest --test-dir /root/SeRTial/build/evl --output-on-failure --timeout 120
 
 echo "All EVL tests passed."
