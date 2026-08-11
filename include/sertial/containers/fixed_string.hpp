@@ -57,6 +57,9 @@ namespace sertial {
 /// @wireformat Serialized as: [length:4 bytes][characters:length bytes] (no null terminator)
 /// @realtime Zero heap allocation, bounded execution time (O(n) where n ≤ MaxSize)
 /// @compiletime Size deduction, type safety, constexpr construction fully supported
+///
+/// @see sertial::rt::append — preferred API for building strings in OOB /
+///      no-exception contexts (integers, floats, hex, bool; no glibc, no throw).
 template<std::size_t MaxSize>
 class fixed_string {
 public:

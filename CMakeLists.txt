@@ -113,6 +113,7 @@ set(TEST_SOURCES
     test_ring_buffer
     test_ring_buffer_serialization
     test_element_padding
+    test_rt_format
 )
 
 foreach(test_name ${TEST_SOURCES})

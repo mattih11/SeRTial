@@ -37,6 +37,9 @@
 #include "containers/ring_buffer.hpp"
 #include "containers/container_traits.hpp"
 
+// RT-safe append helpers (OOB-safe: no throw, no heap, no glibc float)
+#include "containers/rt_format.hpp"
+
 // I/O
 #include "io/unified_binary.hpp"
 
