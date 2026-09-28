@@ -2,6 +2,7 @@
 
 #include "struct_layout.hpp"
 #include <rfl.hpp>
+#include <rfl/num_fields.hpp>
 #include <string>
 #include <vector>
 
@@ -78,7 +79,7 @@ struct Reflector<sertial::StructLayout<T>> {
     static constexpr std::size_t EXPECTED_FIELD_COUNT = 20;
     
     static_assert(
-        rfl::internal::num_fields<ReflType> == EXPECTED_FIELD_COUNT,
+        rfl::num_fields<ReflType> == EXPECTED_FIELD_COUNT,
         "ReflType field count mismatch! Expected 20 fields. "
         "If you added/removed fields in ReflType, update EXPECTED_FIELD_COUNT and EXPECTED_FIELDS."
     );
